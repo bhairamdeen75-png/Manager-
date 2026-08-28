@@ -14,3 +14,5 @@ services:
         sync: false
       - key: MONGO_DB_NAME
         sync: false
+      - key: PYTHON_VERSION
+        value: 3.11.9
