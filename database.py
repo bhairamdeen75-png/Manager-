@@ -26,6 +26,7 @@ auto_responses_col = _db["auto_responses"]
 xp_col = _db["xp"]
 seen_users_col = _db["seen_users"]
 stats_col = _db["stats"]
+groups_col = _db["groups"]
 
 
 def init_db():
@@ -47,6 +48,7 @@ def init_db():
     xp_col.create_index([("chat_id", ASCENDING), ("user_id", ASCENDING)], unique=True)
     seen_users_col.create_index([("chat_id", ASCENDING), ("user_id", ASCENDING)], unique=True)
     stats_col.create_index([("chat_id", ASCENDING)], unique=True)
+    groups_col.create_index([("chat_id", ASCENDING)], unique=True)
 
     logger.info("MongoDB connected (%s / %s)", MONGO_URI, MONGO_DB_NAME)
 
@@ -377,4 +379,48 @@ def get_stats(chat_id: int):
     return {
         "total_messages": doc.get("total_messages", 0),
         "commands_used": doc.get("commands_used", 0),
+    }
+
+
+# ---------------- Groups registry (for panel: My Groups / Owner Panel) ----------------
+
+def track_group(chat_id: int, title: str):
+    """Called whenever the bot sees activity in a group, so we know which
+    groups it's currently active in (used by the /start button panel)."""
+    groups_col.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"title": title}},
+        upsert=True,
+    )
+
+
+def remove_group(chat_id: int):
+    """Called when the bot is removed/kicked from a group."""
+    groups_col.delete_one({"chat_id": chat_id})
+
+
+def get_all_groups():
+    docs = groups_col.find({})
+    return [{"chat_id": d["chat_id"], "title": d.get("title", "Unknown Group")} for d in docs]
+
+
+def get_group_count() -> int:
+    return groups_col.count_documents({})
+
+
+def get_bot_wide_stats():
+    """Aggregate counters for the owner panel."""
+    total_groups = groups_col.count_documents({})
+    total_users = len(seen_users_col.distinct("user_id"))
+    pipeline = [
+        {"$group": {"_id": None, "messages": {"$sum": "$total_messages"}, "commands": {"$sum": "$commands_used"}}}
+    ]
+    agg = list(stats_col.aggregate(pipeline))
+    total_messages = agg[0]["messages"] if agg else 0
+    total_commands = agg[0]["commands"] if agg else 0
+    return {
+        "groups": total_groups,
+        "users": total_users,
+        "messages": total_messages,
+        "commands": total_commands,
     }
