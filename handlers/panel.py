@@ -27,7 +27,7 @@ import database as db
 from config import BOT_NAME, BOT_CREDIT, OWNER_IDS, OFFICIAL_CHANNEL_URL
 
 GROUPS_PER_PAGE = 8
-LOG_LINES_SHOWN = 15
+LOG_LINES_SHOWN = 30
 LOG_BUFFER_SIZE = 300
 
 # key -> (label, emoji, getter, setter)
@@ -91,14 +91,21 @@ async def _safe_edit(query, text, reply_markup):
 def home_text() -> str:
     """Shared, professional panel text used both on /start and on 'Main Menu'."""
     return (
-        f"🤖 <b>{BOT_NAME}</b>\n"
-        f"<i>Group Management, Simplified.</i>\n\n"
-        "Anti-spam · Raid Protection · Filters · Notes · XP · Polls — "
-        "sab kuch ek jagah, bilkul free.\n\n"
-        "Neeche se ek option chuno 👇\n\n"
-        f"📢 Official Channel: @{OFFICIAL_CHANNEL_URL.rsplit('/', 1)[-1]}\n"
-        f"{BOT_CREDIT}"
+        f"🤖 <b>Welcome to {BOT_NAME}!</b>\n"
+        f"<i>Group Management, Simplified.</i>\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Aapke Telegram groups ko safe, active aur entertaining rakhne ka all-in-one tool. ⚡\n\n"
+        f"🛡️ <b>Key Features:</b>\n"
+        f" ├ 🛑 Anti-Spam & Raid Protection\n"
+        f" ├ ⚙️ Advanced Filters & Notes\n"
+        f" ├ 📈 XP System & Leaderboards\n"
+        f" └ 📊 Polls, Games & Much More!\n\n"
+        f"✅ <i>Sab kuch ek jagah, bilkul FREE!</i>\n\n"
+        f"👇 <b>Neeche se ek option chuno:</b>\n\n"
+        f"📢 <b>Updates:</b> @{OFFICIAL_CHANNEL_URL.rsplit('/', 1)[-1]}\n"
+        f"🌟 <b>{BOT_CREDIT}</b>"
     )
+
 
 
 def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
@@ -248,10 +255,8 @@ def owner_keyboard():
             [InlineKeyboardButton("📊 Bot Stats", callback_data="pnl:ostats")],
             [InlineKeyboardButton("📢 Broadcast", callback_data="pnl:obroadcast")],
             [InlineKeyboardButton("🗂️ All Groups", callback_data="pnl:ogroups:0")],
-            [
-                InlineKeyboardButton("🧾 Live Logs", callback_data="pnl:ologs"),
-                InlineKeyboardButton("🐞 Errors", callback_data="pnl:oerrors"),
-            ],
+            [InlineKeyboardButton("🧾 Live Logs", callback_data="pnl:ologs")],
+            [InlineKeyboardButton("🐞 Errors", callback_data="pnl:oerrors")],
             _back_to_start_row(),
         ]
     )
@@ -264,12 +269,18 @@ async def show_owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await query.edit_message_text(
-        f"👑 <b>{BOT_NAME} — Owner Panel</b>\n\n"
-        f"📢 Official Channel: {OFFICIAL_CHANNEL_URL}\n"
-        f"{BOT_CREDIT}",
-        parse_mode="HTML",
-        reply_markup=owner_keyboard(),
-    )
+    text=(
+        f"👑 <b>{BOT_NAME} | Administrator Dashboard</b>\n\n"
+        f"Welcome back, Master! ⚡\n"
+        f"Manage your bot, configure settings, and view system statistics directly from this control panel.\n\n"
+        f"⚙️ <b>Panel Access:</b> <code>Owner Only</code>\n\n"
+        f"📢 <b>Official Updates:</b> {OFFICIAL_CHANNEL_URL}\n"
+        f"🛡️ <b>Credits:</b> {BOT_CREDIT}"
+    ),
+    parse_mode="HTML",
+    reply_markup=owner_keyboard(),
+)
+
 
 
 async def show_owner_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -352,10 +363,17 @@ async def show_owner_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     body = _format_log_block(list(_all_logs), "Abhi tak koi log capture nahi hua.")
-    text = f"🧾 <b>Live Logs</b> <i>(last {min(len(_all_logs), LOG_LINES_SHOWN)})</i>\n\n{body}"
+    text = (
+        f"🧾 <b>Live Logs</b> <i>(last {min(len(_all_logs), LOG_LINES_SHOWN)})</i>\n"
+        "<i>Ye history hai — jab tak clear ya restart na ho, purani lines yahin rahengi.</i>\n\n"
+        f"{body}"
+    )
     kb = InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🔄 Refresh", callback_data="pnl:ologs")],
+            [
+                InlineKeyboardButton("🔄 Refresh", callback_data="pnl:ologs"),
+                InlineKeyboardButton("🗑 Clear", callback_data="pnl:oclearlogs"),
+            ],
             [InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")],
         ]
     )
@@ -368,15 +386,43 @@ async def show_owner_errors(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
 
-    body = _format_log_block(list(_error_logs), "Koi error record nahi hua — sab sahi chal raha hai ✅")
-    text = f"🐞 <b>Errors</b> <i>(last {min(len(_error_logs), LOG_LINES_SHOWN)})</i>\n\n{body}"
+    body = _format_log_block(list(_error_logs), "Koi error record nahi hai — sab sahi chal raha hai ✅")
+    text = (
+        f"🐞 <b>Errors</b> <i>(last {min(len(_error_logs), LOG_LINES_SHOWN)})</i>\n"
+        "<i>Ye bhi history hai — ek purani error yahan tab tak dikhti rahegi jab tak clear na karo, "
+        "chahe wo ab dobara na ho rahi ho.</i>\n\n"
+        f"{body}"
+    )
     kb = InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("🔄 Refresh", callback_data="pnl:oerrors")],
+            [
+                InlineKeyboardButton("🔄 Refresh", callback_data="pnl:oerrors"),
+                InlineKeyboardButton("🗑 Clear", callback_data="pnl:oclearerrors"),
+            ],
             [InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")],
         ]
     )
     await _safe_edit(query, text, kb)
+
+
+async def clear_owner_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        return
+    _all_logs.clear()
+    await query.answer("Logs clear kar diye ✅")
+    await show_owner_logs(update, context)
+
+
+async def clear_owner_errors(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        return
+    _error_logs.clear()
+    await query.answer("Errors clear kar diye ✅")
+    await show_owner_errors(update, context)
 
 
 async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -462,6 +508,10 @@ async def on_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_owner_logs(update, context)
     elif action == "oerrors":
         await show_owner_errors(update, context)
+    elif action == "oclearlogs":
+        await clear_owner_logs(update, context)
+    elif action == "oclearerrors":
+        await clear_owner_errors(update, context)
     elif action == "noop":
         await query.answer()
     else:
