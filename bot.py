@@ -6,6 +6,7 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
+    ChatMemberHandler,
     ContextTypes,
     filters,
 )
@@ -37,6 +38,7 @@ from handlers import (
     xp,
     polls,
     stats,
+    panel,
 )
 
 logging.basicConfig(
@@ -47,50 +49,56 @@ logger = logging.getLogger(__name__)
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    bot_username = (await context.bot.get_me()).username
+    text = (
+        f"🤖 Namaste! Main <b>{BOT_NAME}</b> hoon — tumhara all-in-one group management bot.\n\n"
+        "Anti-spam, raid protection, filters, notes, XP, polls aur bahut kuch — "
+        "sab ek jagah, bilkul free. 👇\n\n"
+        f"{BOT_CREDIT}"
+    )
     await update.message.reply_text(
-        f"🤖 Namaste! Main <b>{BOT_NAME}</b> hoon — tumhara group management bot.\n\n"
-        "Features: anti-spam, raid protection, link/scam filter, media restriction, "
-        "notes, auto-responses, XP+leaderboard, polls/quiz, reminders, pomodoro aur bahut kuch.\n\n"
-        "Mujhe group me admin banao (delete/ban/restrict rights ke saath) "
-        "aur /help se commands dekho.\n\n"
-        f"{BOT_CREDIT}",
-        parse_mode="HTML",
+        text, parse_mode="HTML", reply_markup=panel.start_keyboard(bot_username)
     )
 
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
-        f"<b>📋 {BOT_NAME} — Commands</b>\n\n"
-        "<b>Moderation (reply to a user's message):</b>\n"
-        "/mute [minutes] · /unmute · /ban · /unban &lt;user_id&gt; · /kick\n"
-        "/warn · /unwarn · /warnings · /info\n\n"
-        "<b>Filters &amp; protection:</b>\n"
-        "/addfilter &lt;word&gt; · /removefilter &lt;word&gt; · /filters\n"
-        "/setlinkblock on|off — links/usernames/obfuscated links block karo\n"
-        "/restrictmedia &lt;types|all|none&gt;\n"
-        "/raidprotection on|off · /setraidlimits &lt;joins&gt; &lt;secs&gt; &lt;lock_min&gt;\n"
-        "/lock · /unlock — group ko manually lock/unlock karo\n\n"
-        "<b>Welcome &amp; rules:</b>\n"
-        "/setwelcome &lt;text&gt;\n"
-        "/setrules &lt;text&gt; · /rules · /rulesgate on|off\n"
-        "/autodeletejoinleave on|off\n\n"
-        "<b>Group vibe:</b>\n"
-        "/nightmode on|off · /setnighttime HH:MM HH:MM (UTC)\n"
-        "/autopin on|off\n"
-        "/tagall &lt;reason&gt;\n\n"
-        "<b>Notes &amp; auto-responses:</b>\n"
-        "/save &lt;name&gt; &lt;text&gt; · /notes · /clear &lt;name&gt; — trigger with #name\n"
-        "/addresponse trigger | response · /delresponse &lt;trigger&gt; · /responses\n\n"
-        "<b>Fun &amp; utility:</b>\n"
-        "/poll Q | opt1 | opt2 · /quiz Q | correct_index | opt1 | opt2\n"
-        "/pomodoro &lt;work_min&gt; &lt;break_min&gt; [cycles] · /pomodorostop\n"
-        "/remindme &lt;10m|2h|1d&gt; &lt;text&gt;\n"
-        "/define &lt;word&gt;\n"
-        "/rank · /leaderboard\n\n"
-        "<b>Admin log &amp; stats:</b>\n"
-        "/setlogchannel &lt;channel_id&gt; · /removelogchannel\n"
-        "/stats\n\n"
-        f"{BOT_CREDIT}"
+        f"🗂️ <b>{BOT_NAME} — Command List</b>\n"
+        f"<i>{BOT_CREDIT}</i>\n\n"
+        "🕵️ <b>/start</b> — control panel kholo (my groups, settings, owner panel)\n"
+        "🕵️ <b>/help</b> — ye list dobara dekho\n\n"
+        "👮 <b>Moderation</b> <i>(kisi user ke message pe reply karke use karo)</i>\n"
+        "👮 /mute [minutes] — user ko chup karao\n"
+        "👮 /unmute — bolne do wapas\n"
+        "👮 /ban — group se hamesha ke liye nikalo\n"
+        "👮 /unban &lt;user_id&gt; — rejoin allow karo\n"
+        "👮 /kick — nikalo, rejoin kar sakta hai\n"
+        "👮 /warn · /unwarn · /warnings — warning system\n"
+        "👮 /info — reply kiye gaye user ki full profile\n\n"
+        "🛡️ <b>Filters &amp; Protection</b>\n"
+        "🛡️ /addfilter, /removefilter, /filters — banned words\n"
+        "🛡️ /setlinkblock on|off — links/usernames auto-block\n"
+        "🛡️ /restrictmedia &lt;types|all|none&gt;\n"
+        "🛡️ /raidprotection on|off · /setraidlimits &lt;joins&gt; &lt;secs&gt; &lt;lock_min&gt;\n"
+        "🛡️ /lock · /unlock — group manually lock/unlock\n\n"
+        "📜 <b>Welcome &amp; Rules</b>\n"
+        "📜 /setwelcome &lt;text&gt;\n"
+        "📜 /setrules &lt;text&gt; · /rules · /rulesgate on|off\n"
+        "📜 /autodeletejoinleave on|off\n\n"
+        "✨ <b>Group Vibe</b>\n"
+        "✨ /nightmode on|off · /setnighttime HH:MM HH:MM (UTC)\n"
+        "✨ /autopin on|off · /tagall &lt;reason&gt;\n\n"
+        "📝 <b>Notes &amp; Auto-Responses</b>\n"
+        "📝 /save &lt;name&gt; &lt;text&gt; · /notes · /clear &lt;name&gt; — trigger with #name\n"
+        "📝 /addresponse trigger | response · /delresponse · /responses\n\n"
+        "🎉 <b>Fun &amp; Utility</b>\n"
+        "🎉 /poll Q | opt1 | opt2 · /quiz Q | correct_index | opt1 | opt2\n"
+        "🎉 /pomodoro &lt;work_min&gt; &lt;break_min&gt; [cycles] · /pomodorostop\n"
+        "🎉 /remindme &lt;10m|2h|1d&gt; &lt;text&gt; · /define &lt;word&gt;\n"
+        "🎉 /rank · /leaderboard\n\n"
+        "📊 <b>Admin Log &amp; Stats</b>\n"
+        "📊 /setlogchannel &lt;channel_id&gt; · /removelogchannel · /stats\n\n"
+        "Tip: <b>/start</b> bhejo aur buttons se sab kuch bina typing ke manage karo 😉"
     )
     await update.message.reply_text(text, parse_mode="HTML")
 
@@ -109,6 +117,7 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Passive/background bookkeeping — safe to run even if the message above
     # was already handled, since check_filters/check_flood self-guard.
+    db.track_group(update.effective_chat.id, update.effective_chat.title or "Group")
     db.increment_message_count(update.effective_chat.id)
     await joinleave.track_seen_user(update, context)
     await xp.award_xp(update, context)
@@ -121,11 +130,46 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
     """Single entry point for the new-member pipeline: raid check first (can
     short-circuit everything else during an active raid), then rules gate,
     then captcha."""
+    # If the bot itself was just added, register the group (for the panel's
+    # "My Groups" / owner group list) and skip the human-member pipeline.
+    bot_id = context.bot.id
+    new_members = update.effective_message.new_chat_members
+    if any(m.id == bot_id for m in new_members):
+        chat = update.effective_chat
+        db.track_group(chat.id, chat.title or "Group")
+        await update.effective_message.reply_text(
+            f"👋 Dhanyavaad group me add karne ke liye! Main <b>{BOT_NAME}</b> hoon.\n\n"
+            "Mujhe admin banao (delete/ban/restrict/pin rights ke saath) taaki sab features kaam karein.\n"
+            "/help se commands dekho, ya DM me /start se control panel kholo.",
+            parse_mode="HTML",
+        )
+        return
+
     raided = await raid.check_raid(update, context)
     if raided:
         return
     await rules.on_new_member_rules_gate(update, context)
     await captcha.on_new_member(update, context)
+
+
+async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Keeps the groups registry accurate when the bot is kicked/removed or
+    leaves a group, so the owner panel and 'My Groups' stay correct."""
+    chat_member = update.my_chat_member
+    if not chat_member:
+        return
+    new_status = chat_member.new_chat_member.status
+    chat = update.effective_chat
+    if new_status in ("left", "kicked"):
+        db.remove_group(chat.id)
+    elif new_status in ("member", "administrator"):
+        db.track_group(chat.id, chat.title or "Group")
+
+
+async def on_private_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Captures the owner's next message after tapping 'Broadcast' in the
+    Owner Panel. No-op for everyone else / when no broadcast is pending."""
+    await panel.handle_broadcast_message(update, context)
 
 
 async def on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -220,6 +264,13 @@ def main():
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_chat_members))
     app.add_handler(CallbackQueryHandler(captcha.on_captcha_answer, pattern=r"^captcha:"))
     app.add_handler(CallbackQueryHandler(rules.on_rules_accept, pattern=r"^rules:"))
+
+    # /start control panel: My Groups, Group Settings, Owner Panel
+    app.add_handler(CallbackQueryHandler(panel.on_panel_callback, pattern=r"^pnl:"))
+    app.add_handler(ChatMemberHandler(on_bot_membership_change, ChatMemberHandler.MY_CHAT_MEMBER))
+    app.add_handler(
+        MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & ~filters.COMMAND, on_private_text)
+    )
 
     # Join/leave service message cleanup (own group so it always runs alongside the above)
     app.add_handler(
