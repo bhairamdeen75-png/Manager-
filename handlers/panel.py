@@ -8,19 +8,27 @@
   user administers (where the bot is also present), then a live toggle panel
   for that group's protection settings.
 - "Owner Panel" is restricted to OWNER_IDS and gives bot-wide stats, a
-  broadcast tool, and a group list with a leave option.
+  broadcast tool, a group list with a leave option, and live logs/errors
+  captured straight from the bot's own logging output.
 
 All of this is driven entirely by callback_query buttons so it works fully
 inside a private chat with the bot.
 """
 
+import html
+import logging
+from collections import deque
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 import database as db
 from config import BOT_NAME, BOT_CREDIT, OWNER_IDS
 
 GROUPS_PER_PAGE = 8
+LOG_LINES_SHOWN = 15
+LOG_BUFFER_SIZE = 300
 
 # key -> (label, emoji, getter, setter)
 TOGGLES = {
@@ -31,6 +39,51 @@ TOGGLES = {
     "autopin": ("Auto-Pin", "📌", db.get_autopin, db.set_autopin),
     "autodelete_joinleave": ("Auto-Delete Join/Leave", "🧹", db.get_autodelete_joinleave, db.set_autodelete_joinleave),
 }
+
+
+# ---------------- In-memory log capture (for Owner Panel: Live Logs / Errors) ----------------
+
+_all_logs: deque = deque(maxlen=LOG_BUFFER_SIZE)
+_error_logs: deque = deque(maxlen=LOG_BUFFER_SIZE)
+
+
+class PanelLogHandler(logging.Handler):
+    """A logging.Handler that just keeps the last N formatted lines in memory
+    so the Owner Panel can show them — no external log service needed."""
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+        except Exception:
+            return
+        _all_logs.append(msg)
+        if record.levelno >= logging.ERROR:
+            _error_logs.append(msg)
+
+
+log_handler = PanelLogHandler()
+log_handler.setLevel(logging.INFO)
+log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S"))
+
+
+def _format_log_block(lines: list, empty_msg: str) -> str:
+    if not lines:
+        return empty_msg
+    shown = lines[-LOG_LINES_SHOWN:]
+    escaped = html.escape("\n".join(shown))
+    return f"<pre>{escaped}</pre>"
+
+
+async def _safe_edit(query, text, reply_markup):
+    """edit_message_text, but swallows Telegram's 'message is not modified'
+    error (happens on Refresh when nothing new was logged)."""
+    try:
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=reply_markup)
+    except BadRequest as e:
+        if "not modified" in str(e).lower():
+            await query.answer("Koi naya log nahi hai.")
+        else:
+            raise
 
 
 # ---------------- /start keyboard ----------------
@@ -185,6 +238,8 @@ def owner_keyboard():
             [InlineKeyboardButton("📊 Bot Stats", callback_data="pnl:ostats")],
             [InlineKeyboardButton("📢 Broadcast", callback_data="pnl:obroadcast")],
             [InlineKeyboardButton("🗂️ All Groups", callback_data="pnl:ogroups:0")],
+            [InlineKeyboardButton("🧾 Live Logs", callback_data="pnl:ologs")],
+            [InlineKeyboardButton("🐞 Errors", callback_data="pnl:oerrors")],
             _back_to_start_row(),
         ]
     )
@@ -276,6 +331,40 @@ async def leave_group(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_i
     await show_owner_groups(update, context, page=0)
 
 
+async def show_owner_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        return
+
+    body = _format_log_block(list(_all_logs), "Abhi tak koi log capture nahi hua.")
+    text = f"🧾 <b>Live Logs</b> <i>(last {min(len(_all_logs), LOG_LINES_SHOWN)})</i>\n\n{body}"
+    kb = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔄 Refresh", callback_data="pnl:ologs")],
+            [InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")],
+        ]
+    )
+    await _safe_edit(query, text, kb)
+
+
+async def show_owner_errors(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        return
+
+    body = _format_log_block(list(_error_logs), "Koi error record nahi hua — sab sahi chal raha hai ✅")
+    text = f"🐞 <b>Errors</b> <i>(last {min(len(_error_logs), LOG_LINES_SHOWN)})</i>\n\n{body}"
+    kb = InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔄 Refresh", callback_data="pnl:oerrors")],
+            [InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")],
+        ]
+    )
+    await _safe_edit(query, text, kb)
+
+
 async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
@@ -355,6 +444,10 @@ async def on_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_owner_groups(update, context, page)
     elif action == "leave":
         await leave_group(update, context, int(parts[2]))
+    elif action == "ologs":
+        await show_owner_logs(update, context)
+    elif action == "oerrors":
+        await show_owner_errors(update, context)
     elif action == "noop":
         await query.answer()
     else:
