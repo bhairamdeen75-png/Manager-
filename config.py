@@ -29,6 +29,8 @@ MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "telegram_manager_bot")
 # --- Bot identity ---
 BOT_NAME = "Manager"
 BOT_CREDIT = "Made with ❤️ TEAMVB"
+OFFICIAL_CHANNEL_USERNAME = "thateamvb"
+OFFICIAL_CHANNEL_URL = f"https://t.me/{OFFICIAL_CHANNEL_USERNAME}"
 
 # --- XP system ---
 XP_MIN_PER_MESSAGE = int(os.getenv("XP_MIN_PER_MESSAGE", "1"))
