@@ -24,7 +24,7 @@ from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 import database as db
-from config import BOT_NAME, BOT_CREDIT, OWNER_IDS
+from config import BOT_NAME, BOT_CREDIT, OWNER_IDS, OFFICIAL_CHANNEL_URL
 
 GROUPS_PER_PAGE = 8
 LOG_LINES_SHOWN = 15
@@ -88,6 +88,19 @@ async def _safe_edit(query, text, reply_markup):
 
 # ---------------- /start keyboard ----------------
 
+def home_text() -> str:
+    """Shared, professional panel text used both on /start and on 'Main Menu'."""
+    return (
+        f"🤖 <b>{BOT_NAME}</b>\n"
+        f"<i>Group Management, Simplified.</i>\n\n"
+        "Anti-spam · Raid Protection · Filters · Notes · XP · Polls — "
+        "sab kuch ek jagah, bilkul free.\n\n"
+        "Neeche se ek option chuno 👇\n\n"
+        f"📢 Official Channel: @{OFFICIAL_CHANNEL_URL.rsplit('/', 1)[-1]}\n"
+        f"{BOT_CREDIT}"
+    )
+
+
 def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
     add_url = f"https://t.me/{bot_username}?startgroup=true&admin=delete_messages+restrict_members+invite_users+pin_messages"
     return InlineKeyboardMarkup(
@@ -98,6 +111,7 @@ def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton("⚙️ Group Settings", callback_data="pnl:mygroups:0"),
             ],
             [InlineKeyboardButton("👑 Owner Panel", callback_data="pnl:owner")],
+            [InlineKeyboardButton("📢 Official Channel", url=OFFICIAL_CHANNEL_URL)],
         ]
     )
 
@@ -108,11 +122,7 @@ def _back_to_start_row():
 
 async def _send_home(query, context):
     bot_username = (await context.bot.get_me()).username
-    text = (
-        f"🤖 <b>{BOT_NAME}</b> — Control Panel\n\n"
-        "Neeche se ek option chuno 👇"
-    )
-    await query.edit_message_text(text, parse_mode="HTML", reply_markup=start_keyboard(bot_username))
+    await query.edit_message_text(home_text(), parse_mode="HTML", reply_markup=start_keyboard(bot_username))
 
 
 # ---------------- My Groups / Group Settings picker ----------------
@@ -238,8 +248,10 @@ def owner_keyboard():
             [InlineKeyboardButton("📊 Bot Stats", callback_data="pnl:ostats")],
             [InlineKeyboardButton("📢 Broadcast", callback_data="pnl:obroadcast")],
             [InlineKeyboardButton("🗂️ All Groups", callback_data="pnl:ogroups:0")],
-            [InlineKeyboardButton("🧾 Live Logs", callback_data="pnl:ologs")],
-            [InlineKeyboardButton("🐞 Errors", callback_data="pnl:oerrors")],
+            [
+                InlineKeyboardButton("🧾 Live Logs", callback_data="pnl:ologs"),
+                InlineKeyboardButton("🐞 Errors", callback_data="pnl:oerrors"),
+            ],
             _back_to_start_row(),
         ]
     )
@@ -252,7 +264,9 @@ async def show_owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await query.edit_message_text(
-        f"👑 <b>{BOT_NAME} — Owner Panel</b>\n\n{BOT_CREDIT}",
+        f"👑 <b>{BOT_NAME} — Owner Panel</b>\n\n"
+        f"📢 Official Channel: {OFFICIAL_CHANNEL_URL}\n"
+        f"{BOT_CREDIT}",
         parse_mode="HTML",
         reply_markup=owner_keyboard(),
     )
