@@ -46,18 +46,13 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+logging.getLogger().addHandler(panel.log_handler)  # feeds Owner Panel → Live Logs / Errors
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     bot_username = (await context.bot.get_me()).username
-    text = (
-        f"🤖 Namaste! Main <b>{BOT_NAME}</b> hoon — tumhara all-in-one group management bot.\n\n"
-        "Anti-spam, raid protection, filters, notes, XP, polls aur bahut kuch — "
-        "sab ek jagah, bilkul free. 👇\n\n"
-        f"{BOT_CREDIT}"
-    )
     await update.message.reply_text(
-        text, parse_mode="HTML", reply_markup=panel.start_keyboard(bot_username)
+        panel.home_text(), parse_mode="HTML", reply_markup=panel.start_keyboard(bot_username)
     )
 
 
