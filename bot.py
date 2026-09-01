@@ -142,7 +142,7 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
         raided = await raid.check_raid(update, context)
         if raided:
             return
-ecuted
+command executed
         # Rules gate crash hone par captcha zaroor chale — isliye alag try me
         try:
             await rules.on_new_member_rules_gate(update, context)
