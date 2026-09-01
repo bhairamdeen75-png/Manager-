@@ -10,7 +10,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-from handlers import adminplus
+
 from config import BOT_TOKEN, BOT_NAME, BOT_CREDIT
 import database as db
 from keep_alive import keep_alive
@@ -39,6 +39,7 @@ from handlers import (
     polls,
     stats,
     panel,
+    adminplus,
 )
 
 logging.basicConfig(
