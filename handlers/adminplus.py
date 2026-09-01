@@ -11,18 +11,6 @@ from telegram.ext import ContextTypes
 import database as db
 from handlers.utils import is_admin
 
-
-def _target_user(update: Update, context: ContextTypes_dict):
-    msg = update.effective_message
-    if msg.reply_to_message and msg.reply_to_message.from_user:
-        return msg.reply_to_message.from_user
-    if context.args:
-        arg = context.args[0].lstrip("@")
-        if arg.isdigit():
-            return type("Ref", (), {"id": int(arg)})()
-    return None
-
-
 # ---------------- /purge ----------------
 
 async def cmd_purge(update: Update, context: ContextTypes.DEFAULT_TYPE):
