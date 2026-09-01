@@ -192,7 +192,7 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("info", info.cmd_info))
-    app.add_handler(CommandHandler("stats", cmd_stats ...))
+    app.add_handler(CommandHandler("stats", stats.cmd_stats))
 
     # Admin+                                          ✅ SAHI JAGAH
     app.add_handler(CommandHandler("purge", adminplus.cmd_purge))
