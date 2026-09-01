@@ -10,7 +10,7 @@ from telegram.ext import (
     ContextTypes,
     filters,
 )
-
+from handlers import adminplus
 from config import BOT_TOKEN, BOT_NAME, BOT_CREDIT
 import database as db
 from keep_alive import keep_alive
@@ -45,6 +45,11 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
+# Admin+
+    app.add_handler(CommandHandler("purge", adminplus.cmd_purge))
+    app.add_handler(CommandHandler("report", adminplus.cmd_report))
+    app.add_handler(CommandHandler("status", adminplus.cmd_status))
+
 logger = logging.getLogger(__name__)
 logging.getLogger().addHandler(panel.log_handler)  # feeds Owner Panel → Live Logs / Errors
 
