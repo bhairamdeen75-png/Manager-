@@ -130,8 +130,8 @@ async def on_captcha_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ),
             )
         except Exception:
-            pass
-
+            logger.warning("Restrict failed for %s in %s — bot ko 'Ban users' permission chahiye!", chat.id, membechat.idr.id)
+            
         welcome_text = db.get_welcome(chat_id) or "🎉 Verify ho gaya! Group rules follow karo aur enjoy karo."
         await query.edit_message_text(f"✅ Verification successful!\n\n{welcome_text}")
         await query.answer("Verified!")
