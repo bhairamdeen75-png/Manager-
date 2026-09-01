@@ -142,7 +142,7 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
         raided = await raid.check_raid(update, context)
         if raided:
             return
-command executed
+
         # Rules gate crash hone par captcha zaroor chale — isliye alag try me
         try:
             await rules.on_new_member_rules_gate(update, context)
@@ -152,13 +152,6 @@ command executed
         await captcha.on_new_member(update, context)
     except Exception:
         logger.exception("Join pipeline failed for chat %s", chat.id)
-
-    raided = await raid.check_raid(update, context)
-    if raided:
-        return
-    await rules.on_new_member_rules_gate(update, context)
-    await captcha.on_new_member(update, context)
-
 
 async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Keeps the groups registry accurate when the bot is kicked/removed or
