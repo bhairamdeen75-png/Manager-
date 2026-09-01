@@ -122,15 +122,13 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Single entry point for the new-member pipeline: raid check first (can
-    short-circuit everything else during an active raid), then rules gate,
-    then captcha."""
-    # If the bot itself was just added, register the group (for the panel's
-    # "My Groups" / owner group list) and skip the human-member pipeline.
     bot_id = context.bot.id
     new_members = update.effective_message.new_chat_members
+    chat = update.effective_chat
+
+    logger.info("JOIN EVENT: chat=%s (%s) members=%s", chat.id, chat.title, [m.id for m in new_members])
+
     if any(m.id == bot_id for m in new_members):
-        chat = update.effective_chat
         db.track_group(chat.id, chat.title or "Group")
         await update.effective_message.reply_text(
             f"👋 Dhanyavaad group me add karne ke liye! Main <b>{BOT_NAME}</b> hoon.\n\n"
@@ -139,6 +137,21 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML",
         )
         return
+
+    try:
+        raided = await raid.check_raid(update, context)
+        if raided:
+            return
+ecuted
+        # Rules gate crash hone par captcha zaroor chale — isliye alag try me
+        try:
+            await rules.on_new_member_rules_gate(update, context)
+        except Exception:
+            logger.exception("Rules gate failed for chat %s", chat.id)
+
+        await captcha.on_new_member(update, context)
+    except Exception:
+        logger.exception("Join pipeline failed for chat %s", chat.id)
 
     raided = await raid.check_raid(update, context)
     if raided:
