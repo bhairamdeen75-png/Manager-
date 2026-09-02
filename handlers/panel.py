@@ -26,7 +26,7 @@ from config import BOT_NAME, BOT_CREDIT, OWNER_IDS, OFFICIAL_CHANNEL_URL
 GROUPS_PER_PAGE = 8
 LOG_LINES_SHOWN = 30
 LOG_BUFFER_SIZE = 300
-MAX_MESSAGE_CHARS = 3500 
+MAX_MESSAGE_CHARS = 3500
 
 # key -> (label, emoji, getter, setter)
 TOGGLES = {
@@ -57,6 +57,7 @@ class PanelLogHandler(logging.Handler):
         if record.levelno >= logging.WARNING:
             _error_logs.append(line)
 
+
 log_handler = PanelLogHandler()
 log_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 
@@ -82,20 +83,20 @@ async def _safe_edit(query, text: str, kb: InlineKeyboardMarkup):
 
 def home_text() -> str:
     return (
-    f"🤖 <b>Welcome to {html.escape(BOT_NAME)}!</b>\n"
-    "<i>Group Management, Simplified.</i>\n"
-    "━━━━━━━━━━━━━━━━━━━━\n\n"
-    "Aapke Telegram groups ko safe, active aur engaging rakhne ka all-in-one solution. ⚡\n\n"
-    "🛡️ <b>Key Features:</b>\n"
-    " ├ 🛑 <b>Anti-Spam & Raid Protection</b>\n"
-    " ├ ⚙️ <b>Advanced Filters & Custom Notes</b>\n"
-    " ├ 📈 <b>XP System & Leaderboards</b>\n"
-    " └ 📊 <b>Polls, Mini-Games & Utility Tools</b>\n\n"
-    "✅ Sab kuch ek jagah, bilkul FREE!\n\n"
-    "👇 Neeche diye gaye buttons se option chuno:\n\n"
-    "📢 <b>Updates:</b> @theteamvb\n"
-    "🌟 <b>Made with ❤️ TEAMVB</b>"
-)
+        f"🤖 <b>Welcome to {html.escape(BOT_NAME)}!</b>\n"
+        "<i>Group Management, Simplified.</i>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "Aapke Telegram groups ko safe, active aur engaging rakhne ka all-in-one solution. ⚡\n\n"
+        "🛡️ <b>Key Features:</b>\n"
+        " ├ 🛑 <b>Anti-Spam & Raid Protection</b>\n"
+        " ├ ⚙️ <b>Advanced Filters & Custom Notes</b>\n"
+        " ├ 📈 <b>XP System & Leaderboards</b>\n"
+        " └ 📊 <b>Polls, Mini-Games & Utility Tools</b>\n\n"
+        "✅ Sab kuch ek jagah, bilkul FREE!\n\n"
+        "👇 Neeche diye gaye buttons se option chuno:\n\n"
+        "📢 <b>Updates:</b> @theteamvb\n"
+        "🌟 <b>Made with ❤️ TEAMVB</b>"
+    )
 
 
 def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
@@ -133,6 +134,15 @@ async def _admin_groups_for(context, user_id):
     return mine
 
 
+async def _is_group_admin(context, user_id: int) -> bool:
+    if _is_owner(user_id):
+        return True
+    try:
+        return True  # mygroups screen khud filter karti hai
+    except Exception:
+        return False
+
+
 async def show_my_groups(update, context, page: int = 0):
     query = update.callback_query
     if not await _is_group_admin(context, query.from_user.id):
@@ -163,15 +173,6 @@ async def show_my_groups(update, context, page: int = 0):
         f"👥 <b>Tumhare groups</b> ({len(mine)})\n\nEk chuno — settings dikhata hoon. 😊",
         InlineKeyboardMarkup(kb),
     )
-
-
-async def _is_group_admin(context, user_id: int) -> bool:
-    if _is_owner(user_id):
-        return True
-    try:
-        return True  # mygroups screen khud filter karti hai
-    except Exception:
-        return False
 
 
 async def show_group_settings(update, context, chat_id: int):
@@ -301,7 +302,7 @@ async def leave_group(update, context, chat_id: int):
     await show_owner_groups(update, context, page=0)
 
 
-
+# ---------------- Live Logs / Errors (overflow-safe) ----------------
 
 def _format_log_block(lines, empty_msg: str) -> str:
     """Last N log lines, but never exceed Telegram's message limit."""
@@ -309,7 +310,7 @@ def _format_log_block(lines, empty_msg: str) -> str:
         return f"<i>{empty_msg}</i>"
     result_lines = []
     total = 0
-    for line in reversed(lines):  # nayi lines pehle uthao
+    for line in reversed(lines):
         size = len(html.escape(line)) + 1
         if total + size > MAX_MESSAGE_CHARS:
             break
@@ -322,7 +323,7 @@ def _format_log_block(lines, empty_msg: str) -> str:
 
 
 async def show_owner_logs(update, context):
-  query = update.callback_query
+    query = update.callback_query
     await query.answer()
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -345,8 +346,9 @@ async def show_owner_logs(update, context):
     )
     await _edit_or_alert(query, text, kb)
 
+
 async def show_owner_errors(update, context):
-  query = update.callback_query
+    query = update.callback_query
     await query.answer()
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -369,6 +371,23 @@ async def show_owner_errors(update, context):
         ]
     )
     await _edit_or_alert(query, text, kb)
+
+
+async def _edit_or_alert(query, text, kb):
+    """Edit karo; agar content same hai to chup raho, warna user ko error dikhao."""
+    try:
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            try:
+                await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
+            except Exception:
+                pass
+    except Exception as e:
+        try:
+            await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
+        except Exception:
+            pass
 
 
 async def clear_owner_logs(update, context):
@@ -439,24 +458,6 @@ async def handle_broadcast_message(update: Update, context: ContextTypes.DEFAULT
         f"📢 Broadcast bhej diya.\n✅ Sent: {sent}\n❌ Failed: {failed}"
     )
     return True
-  
-
-async def _edit_or_alert(query, text, kb):
-    """Edit karo; agar content same hai to chup raho, warna user ko error dikhao.
-    Ab kabhi bhi button 'dead' nahi lagega — hamesha kuch response milega."""
-    try:
-        await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
-    except BadRequest as e:
-        if "not modified" not in str(e).lower():
-            try:
-                await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
-            except Exception:
-                pass
-    except Exception as e:
-        try:
-            await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
-        except Exception:
-            pass
 
 
 # ---------------- Callback router ----------------
