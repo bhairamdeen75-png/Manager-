@@ -65,6 +65,7 @@ from handlers import (
     antiforward,
     blocklist,
     security,
+    settings_panel,
 )
 
 logging.basicConfig(
@@ -293,6 +294,8 @@ def main():
 
     app.add_handler(CommandHandler("setleave", welcome.cmd_setleave))
     app.add_handler(CallbackQueryHandler(on_help_callback, pattern=r"^help:"))
+    app.add_handler(CallbackQueryHandler(settings_panel.on_settings_callback, pattern=r"^setpnl:"))
+    app.add_handler(CommandHandler("sethelp", settings_panel.cmd_sethelp))
 
     # Basic
     app.add_handler(CommandHandler("start", cmd_start))
