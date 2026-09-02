@@ -58,6 +58,7 @@ from handlers import (
     antiedit,
     gban,
     antiforward,
+    blocklist,
 )
 
 logging.basicConfig(
@@ -239,8 +240,12 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Spam score check
     if await spamscore.check_message(update, context):
         return
+        
+          # Global blocklist (gaali/scam words — hamesha on)
+    if await blocklist.check_blocklist(update, context):
+        return
 
-# Anti-forward check
+   # Anti-forward check
     if await antiforward.check_forward(update, context):
         return
     # ===== ORIGINAL PIPELINE (ye lines sabse zaroori hain) =====
