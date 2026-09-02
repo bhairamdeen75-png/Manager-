@@ -424,3 +424,29 @@ def get_bot_wide_stats():
         "messages": total_messages,
         "commands": total_commands,
     }
+
+def export_group_data(chat_id):
+    """Saare collections se is group ka data nikaalo."""
+    out = {}
+    for name, coll in [
+        ("notes", notes_col), ("filters", filters_col),
+        ("warns", warns_col), ("settings", settings_col),
+    ]:
+        docs = list(coll.find({"chat_id": chat_id}, {"_id": 0}))
+        if docs:
+            out[name] = docs
+    return out
+
+
+def import_group_data(chat_id, data):
+    """JSON backup ko is group me import karo (existing overwrite)."""
+    count = 0
+    for name, docs in data.items():
+        coll = {"notes": notes_col, "filters": filters_col,
+                "warns": warns_col, "settings": settings_col}[name]
+        coll.delete_many({"chat_id": chat_id})
+        for doc in docs:
+            doc["chat_id"] = chat_id
+            coll.insert_one(doc)
+            count += 1
+    return count
