@@ -115,8 +115,7 @@ def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
             [InlineKeyboardButton("➕ Add me to your group", url=add_url)],
             [
                 InlineKeyboardButton("👥 My Groups", callback_data="pnl:mygroups:0"),
-                InlineKeyboardButton("⚙️ Group Settings", callback_data="pnl:mygroups:0"),
-            ],
+                InlineKeyboardButton("⚙️ Group Settings", callback_data="setpnl:start")
             [InlineKeyboardButton("👑 Owner Panel", callback_data="pnl:owner")],
             [InlineKeyboardButton("📢 Official Channel", url=OFFICIAL_CHANNEL_URL)],
         ]
