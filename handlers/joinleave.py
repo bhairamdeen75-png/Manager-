@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 import database as db
-from handlers.utils import is_admin
+from handlers.utils import is_admin, format_welcome_leave
 
 
 async def cmd_autodeletejoinleave(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -15,19 +15,30 @@ async def cmd_autodeletejoinleave(update: Update, context: ContextTypes.DEFAULT_
     enabled = context.args[0].lower() == "on"
     db.set_autodelete_joinleave(update.effective_chat.id, enabled)
     state = "ON ✅" if enabled else "OFF ❌"
-    await update.message.reply_text(f"🧹 Auto-delete join/leave messages: {state}")
+    await update.message.reply_text(f"🧹 Auto-delete join/leave service messages: {state}")
 
 
 async def on_join_leave_service_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Deletes 'X joined' / 'X left' service messages if the setting is enabled.
-    Also cleans up the seen_users list when someone leaves."""
+    """'X joined'/'X left' service messages delete karta hai (agar setting on hai),
+    custom leave message bhejta hai (agar /setleave se set hai), aur
+    seen_users list clean karta hai."""
     chat = update.effective_chat
     msg = update.effective_message
     if chat.type not in ("group", "supergroup") or not msg:
         return
 
     if msg.left_chat_member:
-        db.remove_seen_user(chat.id, msg.left_chat_member.id)
+        leaver = msg.left_chat_member
+        db.remove_seen_user(chat.id, leaver.id)
+
+        # Custom leave message (bots skip karo)
+        leave_text = db.get_leave_message(chat_id=chat.id)
+        if leave_text and not leaver.is_bot:
+            try:
+                formatted = format_welcome_leave(leave_text, leaver, chat)
+                await context.bot.send_message(chat.id, formatted, parse_mode="HTML")
+            except Exception:
+                pass
 
     if not db.get_autodelete_joinleave(chat.id):
         return
@@ -39,8 +50,7 @@ async def on_join_leave_service_message(update: Update, context: ContextTypes.DE
 
 
 async def track_seen_user(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Runs on every normal group text message so we know who is active in the
-    group (needed for /tagall, since bots can't list all members directly)."""
+    """Har normal group message pe chalta hai — /tagall ke liye active users track."""
     user = update.effective_user
     chat = update.effective_chat
     if not user or not chat or chat.type not in ("group", "supergroup"):
