@@ -465,3 +465,16 @@ def import_group_data(chat_id, data):
             count += 1
     return count
 
+# ---------------- Anti-forward ----------------
+
+def set_antiforward(chat_id: int, enabled: bool):
+    settings_col.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"antiforward": enabled}},
+        upsert=True,
+    )
+
+
+def get_antiforward(chat_id: int) -> bool:
+    doc = settings_col.find_one({"chat_id": chat_id})
+    return doc.get("antiforward", False) if doc else False
