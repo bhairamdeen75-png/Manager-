@@ -10,6 +10,7 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 
+from handlers.utils import format_welcome_leave  # top me
 import database as db
 from config import CAPTCHA_TIMEOUT_SECONDS
 
@@ -134,7 +135,14 @@ async def on_captcha_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception:
                logger.warning("Restrict failed for %s — bot ko 'Ban users' permission chahiye!", chat_id)
     
-        welcome_text = db.get_welcome(chat_id) or "🎉 Verify ho gaya! Group rules follow karo aur enjoy karo."
+        
+
+# on_captcha_answer ke andar:
+welcome_text = db.get_welcome(chat_id)
+if welcome_text:
+    welcome_text = format_welcome_leave(welcome_text, query.from_user, query.message.chat)
+else:
+    welcome_text = "🎉 Verify ho gaya! Group rules follow karo aur enjoy karo."
         await query.edit_message_text(f"✅ Verification successful!\n\n{welcome_text}")
         await query.answer("Verified!")
     else:
