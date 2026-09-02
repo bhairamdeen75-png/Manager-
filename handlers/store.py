@@ -120,8 +120,7 @@ def get_welcome(chat_id):
 def set_welcome(chat_id, text=None, file_id=None):
     settings.update_one(
         {"chat_id": chat_id},
-        {"$set": {"welcome": {"text": text, "file_id": file_id,
-                              "buttons": (self_welcome_buttons(chat_id) or [])}}},
+        {"$set": {"welcome": {"text": text, "file_id": file_id}}},
         upsert=True,
     )
 
