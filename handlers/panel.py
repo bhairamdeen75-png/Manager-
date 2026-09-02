@@ -322,8 +322,8 @@ def _format_log_block(lines, empty_msg: str) -> str:
 
 
 async def show_owner_logs(update, context):
-  await query.answer()
-    query = update.callback_query
+  query = update.callback_query
+    await query.answer()
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
@@ -346,8 +346,8 @@ async def show_owner_logs(update, context):
     await _edit_or_alert(query, text, kb)
 
 async def show_owner_errors(update, context):
-  await query.answer()
-    query = update.callback_query
+  query = update.callback_query
+    await query.answer()
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
