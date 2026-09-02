@@ -34,7 +34,7 @@ OFFICIAL_CHANNEL_URL = f"https://t.me/{OFFICIAL_CHANNEL_USERNAME}"
 
 # --- XP system ---
 XP_MIN_PER_MESSAGE = int(os.getenv("XP_MIN_PER_MESSAGE", "1"))
-XP_MAX_PER_MESSAGE = int(os.getenv("XP_MAX_PER_MESSAGE", "1"))
+XP_MAX_PER_MESSAGE = int(os.getenv("XP_MAX_PER_MESSAGE", "3"))
 XP_COOLDOWN_SECONDS = int(os.getenv("XP_COOLDOWN_SECONDS", "30"))
 
 # --- Free dictionary API (no key required) ---
