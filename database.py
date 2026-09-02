@@ -482,3 +482,30 @@ def set_antiforward(chat_id: int, enabled: bool):
 def get_antiforward(chat_id: int) -> bool:
     doc = settings_col.find_one({"chat_id": chat_id})
     return doc.get("antiforward", False) if doc else False
+
+# ---------------- Guess game (restart-proof) ----------------
+
+def set_guess_game(chat_id: int, number: int):
+    stats_col.database["guess_games"].update_one(
+        {"chat_id": chat_id},
+        {"$set": {"number": number, "tries": 0}},
+        upsert=True,
+    )
+
+
+def get_guess_game(chat_id: int):
+    doc = stats_col.database["guess_games"].find_one({"chat_id": chat_id})
+    if not doc:
+        return None
+    return {"number": doc["number"], "tries": doc.get("tries", 0)}
+
+
+def add_guess_try(chat_id: int):
+    stats_col.database["guess_games"].update_one(
+        {"chat_id": chat_id}, {"$inc": {"tries": 1}}
+    )
+
+
+def delete_guess_game(chat_id: int):
+    stats_col.database["guess_games"].delete_one({"chat_id": chat_id})
+
