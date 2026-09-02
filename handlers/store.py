@@ -58,20 +58,22 @@ def get_aliases(chat_id):
     return {a["alias"]: a["target"] for a in aliases.find({"chat_id": chat_id})}
 
 
-# ---------- Invites ----------
-def inc_invite(chat_id, user_id, name):
-    invites.update_one(
-        {"chat_id": chat_id, "user_id": user_id},
-        {"$inc": {"count": 1}, "$set": {"name": name}},
+# ---------- Invite link map ----------
+linkmap = _db["invite_links"]
+
+def map_link_to_inviter(chat_id, link, inviter_id):
+    linkmap.update_one(
+        {"link": link},
+        {"$set": {"chat_id": chat_id, "inviter_id": inviter_id}},
         upsert=True,
     )
 
-def get_invites(chat_id, user_id):
-    doc = invites.find_one({"chat_id": chat_id, "user_id": user_id})
-    return doc["count"] if doc else 0
-
-def top_inviters(chat_id, limit=10):
-    return list(invites.find({"chat_id": chat_id}).sort("count", -1).limit(limit))
+def set_inviter_name(chat_id, user_id, name):
+    invites.update_one(
+        {"chat_id": chat_id, "user_id": user_id},
+        {"$set": {"name": name}},
+        upsert=True,
+    )
 
 
 # ---------- Scheduled messages ----------
@@ -113,25 +115,35 @@ def set_captcha_mode(chat_id, mode):
     settings.update_one({"chat_id": chat_id}, {"$set": {"captcha_mode": mode}}, upsert=True)
 
 
-# ---------- Welcome media + buttons ----------
-def get_welcome(chat_id):
-    doc = settings.find_one({"chat_id": chat_id, "welcome": {"$exists": True}})
-    return doc.get("welcome") if doc else None
 
-def set_welcome(chat_id, text=None, file_id=None):
+# ---------- Welcome media (standalone keys, pehle wale welcome.* se alag) ----------
+def set_welcome_media(chat_id, file_id, mtype):
     settings.update_one(
         {"chat_id": chat_id},
-        {"$set": {"welcome": {"text": text, "file_id": file_id}}},
+        {"$set": {"welcome_media": {"file_id": file_id, "type": mtype}}},
         upsert=True,
     )
 
-def set_welcome_buttons(chat_id, buttons):
-    settings.update_one({"chat_id": chat_id}, {"$set": {"welcome.buttons": buttons}}, upsert=True)
-
-def self_welcome_buttons(chat_id):
+def get_welcome_media(chat_id):
     doc = settings.find_one({"chat_id": chat_id})
-    return doc.get("welcome", {}).get("buttons", []) if doc else []
+    return doc.get("welcome_media") if doc else None
 
+def clear_welcome_media(chat_id):
+    settings.update_one({"chat_id": chat_id}, {"$unset": {"welcome_media": ""}})
+
+def set_welcome_buttons(chat_id, buttons):
+    settings.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"welcome_buttons": buttons}},
+        upsert=True,
+    )
+
+def get_welcome_buttons(chat_id):
+    doc = settings.find_one({"chat_id": chat_id})
+    return doc.get("welcome_buttons", []) if doc else []
+
+def clear_welcome_buttons(chat_id):
+    settings.update_one({"chat_id": chat_id}, {"$unset": {"welcome_buttons": ""}})
 
 # ---------- Appeals ----------
 def add_appeal(chat_id, user_id, name, reason):
