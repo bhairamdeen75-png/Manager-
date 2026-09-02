@@ -9,6 +9,7 @@ import logging
 import math
 import operator
 import random
+import database as db
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -241,26 +242,23 @@ async def cmd_shorturl(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"🔗 <b>Short link ready:</b>\n\n{short}", parse_mode="HTML")
 
 
-# ---------------- /guess — group guessing game 🎮 ----------------
-
-# chat_id -> {"number": int, "tries": int, "starter": user_id}
-_guess_games: dict = {}
-
+# ---------------- /guess — group guessing game 🎮 (MongoDB-backed) ----------------
 
 async def cmd_guess(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user.first_name
 
+    # Bina number ke = game start / status
     if not context.args:
-        if chat_id in _guess_games:
-            g = _guess_games[chat_id]
+        game = db.get_guess_game(chat_id)
+        if game:
             await update.message.reply_text(
-                f"🎮 Game pehle se chal raha hai! Ab tak {g['tries']} guess ho chuke.\n"
+                f"🎮 Game pehle se chal raha hai! Ab tak {game['tries']} guess ho chuke.\n"
                 "📌 Guess karo: /guess 50"
             )
             return
         number = random.randint(1, 100)
-        _guess_games[chat_id] = {"number": number, "tries": 0, "starter": user}
+        db.set_guess_game(chat_id, number)
         await update.message.reply_text(
             "🎮 <b>NUMBER GUESSING GAME!</b>\n\n"
             "🤖 Maine 1 se 100 ke beech ek number socha hai...\n"
@@ -271,29 +269,48 @@ async def cmd_guess(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if chat_id not in _guess_games:
-        await update.message.reply_text("🎮 Pehle game start karo — bas <code>/guess</code> likho, bina number ke!", parse_mode="HTML")
+    # Number ke saath = guess
+    game = db.get_guess_game(chat_id)
+    if not game:
+        await update.message.reply_text(
+            "🎮 Pehle game start karo — bas <code>/guess</code> likho, bina number ke!",
+            parse_mode="HTML",
+        )
         return
 
-    if not context.args[0].lstrip("-").isdigit():
+    arg = context.args[0].lstrip("-")
+    if not arg.isdigit():
         await update.message.reply_text("🔢 Number batao bhai — /guess 50 jaise!")
         return
 
     guess = int(context.args[0])
-    g = _guess_games[chat_id]
-    g["tries"] += 1
+    secret = game["number"]
+    db.add_guess_try(chat_id)
 
-    if guess < g["number"]:
-        await update.message.reply_text(f"📈 {user}: <b>{guess}</b> — Chhota hai! Upar socho ⬆️")
-    elif guess > g["number"]:
-        await update.message.reply_text(f"📉 {user}: <b>{guess}</b> — Bada hai! Neeche jao ⬇️")
+    # Hints ab bilkul unambiguous: "MERA NUMBER tumhare guess se bada/chhota hai"
+    if secret > guess:
+        await update.message.reply_text(
+            f"📈 {user}: <b>{guess}</b> — Galat! Mera number isse <b>BADA</b> hai ⬆️",
+            parse_mode="HTML",
+        )
+    elif secret < guess:
+        await update.message.reply_text(
+            f"📉 {user}: <b>{guess}</b> — Galat! Mera number isse <b>CHHOTA</b> hai ⬇️",
+            parse_mode="HTML",
+        )
     else:
-        del _guess_games[chat_id]
+        tries = game["tries"] + 1
+        db.delete_guess_game(chat_id)
+        if tries <= 5:
+            praise = "🥳 Legend ho tum!"
+        elif tries <= 10:
+            praise = "👍 Sahi toh hai, bas thoda lamba khel gaye."
+        else:
+            praise = "🐌 Pahunch toh gaye, bas raste me thoda ghoom aaye."
         await update.message.reply_text(
             f"🎉🎉🎉 <b>SHABASH {user}!</b>\n\n"
             f"🎯 Number <b>{guess}</b> hi tha!\n"
-            f"🏆 Sirf <b>{g['tries']} guesses</b> me pakad liya!\n\n"
-            f"{'🥳 Legend ho tum!' if g['tries'] <= 5 else '👍 Sahi toh hai, bas thoda lamba khel gaye.' if g['tries'] <= 10 else '🐌 Pahunch toh gaye, bas raste me thoda ghoom aaye.'}\n\n"
-            "Naya game? <code>/guess</code> likho!",
+            f"🏆 Sirf <b>{tries} guesses</b> me pakad liya!\n\n"
+            f"{praise}\n\nNaya game? <code>/guess</code> likho!",
             parse_mode="HTML",
         )
