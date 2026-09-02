@@ -499,15 +499,15 @@ def main():
     # Restart-proof schedules: night mode + scheduled messages
     schedule_startup_jobs(app)
 
-    logger.info("%s starting... %s", BOT_NAME, BOT_CREDIT)
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
-
     # Hourly XP leaderboard auto-post (har group me)
     app.job_queue.run_repeating(
         xp.post_hourly_leaderboards,
         interval=LEADERBOARD_INTERVAL_MINUTES * 60,
         first=LEADERBOARD_INTERVAL_MINUTES * 60,
     )
+
+    logger.info("%s starting... %s", BOT_NAME, BOT_CREDIT)
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 def schedule_startup_jobs(app: Application):
