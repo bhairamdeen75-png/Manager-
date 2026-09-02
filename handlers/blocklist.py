@@ -68,32 +68,49 @@ def _normalize(text: str) -> str:
 
 
 async def check_blocklist(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Passive pipeline se call hota hai. True = action liya."""
+    """Passive pipeline se call hota hai. True = action liya.
+    KOI EXEMPTION NAHI — admin, owner, bot owner, sab pe chalega."""
     msg = update.effective_message
     user = update.effective_user
     chat = update.effective_chat
     if not msg or not msg.text or not user or user.is_bot:
         return False
-    if await is_admin(update, context):
-        return False  # admins exempt (panel/meeting me zaroorat pad sakti hai)
+
+    # Sirf bot ke khud ke messages skip karo (bot kabhi gali nahi bolege, 
+    # lekin loop protection ke liye)
+    if user.id == context.bot.id:
+        return False
 
     normalized = _normalize(msg.text)
     if not _BLOCK_RE.search(normalized):
         return False
 
+    # Pehle delete (order zaroori hai — phir chahe mute fail ho, message toh gaya)
     try:
         await msg.delete()
+    except (BadRequest, Forbidden) as e:
+        logger.warning("Blocklist delete fail %s: %s", chat.id, e)
+
+    # Mute try karo — admins/owners pe ye Telegram-level pe fail hoga 
+    # (bot admin ko restrict nahi kar sakta), lekin delete toh hoga hi
+    try:
         await context.bot.restrict_chat_member(
             chat.id, user.id,
             permissions=ChatPermissions(can_send_messages=False),
             until_date=datetime.now(timezone.utc) + timedelta(minutes=60),
         )
+        mute_note = "1 hour mute."
+    except (BadRequest, Forbidden):
+        # Admin/owner hai — Telegram mute nahi hone dega, but message delete ho gaya
+        mute_note = "(admin hai, mute nahi ho sakta — message delete ho gaya)"
+
+    try:
         await chat.send_message(
             f"🚫 {user.mention_html()} — gaali/badwords is group me allowed nahi hai! "
-            f"1 hour ke liye chup ho ja lala bahut bakwas karta hai ab nahi karna . Ye rule hamesha on rehta hai.",
+            f"{mute_note} Ye rule SAB pe lagta hai — admin, owner, koi exempt nahi.",
             parse_mode="HTML",
         )
-        logger.warning("Blocklist hit: user %s in %s", user.id, chat.id)
-    except (BadRequest, Forbidden) as e:
-        logger.warning("Blocklist enforce fail %s: %s", chat.id, e)
+    except Exception:
+        pass
+    logger.warning("Blocklist hit: user %s (%s) in %s", user.id, user.first_name, chat.id)
     return True
