@@ -1,7 +1,8 @@
 import logging
+import random
 
 from telegram import Update
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup  
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -13,7 +14,10 @@ from telegram.ext import (
     filters,
 )
 
-from config import BOT_TOKEN, BOT_NAME, BOT_CREDIT
+from config import (
+    BOT_TOKEN, BOT_NAME, BOT_CREDIT,
+    XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE, XP_COOLDOWN_SECONDS,
+)
 import database as db
 from keep_alive import keep_alive
 
@@ -43,6 +47,7 @@ from handlers import (
     panel,
     adminplus,
     # ===== NAYE MODULES =====
+    store,
     spamscore,
     channelspam,
     captchaplus,
@@ -122,11 +127,12 @@ HELP_PAGES = {
         "🔴 <b>ADVANCED COMMANDS</b>\n\n"
         "🛡️ <b>Advanced Protection:</b>\n"
         "🛡️ /raidprotection on|off\n"
-        "🛡️ /setraidlimits &lt;joins&gt; &lt;seconds&gt;\n"
+        "🛡️ /setraidlimits &lt;joins&gt; &lt;seconds&gt; &lt;lock_min&gt;\n"
         "🛡️ /setcaptchamode math|button|image\n"
         "🛡️ /approve /unapprove /approved\n"
         "✏️ (anti-edit spam automatic hai)\n"
-        "📺 (anti-channel-spam automatic hai)\n\n"
+        "📺 (anti-channel-spam automatic hai)\n"
+        "🚫 (global blocklist automatic hai)\n\n"
         "⚙️ <b>Advanced Setup:</b>\n"
         "⚙️ /rulesgate on|off — rules accept gate\n"
         "⚙️ /autopin — admin msgs auto-pin\n"
@@ -169,26 +175,28 @@ async def on_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ])
     await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
+
 async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
-    for member in update.message.new_chat_members:
-        if member.is_bot:
-            continue
+    new_members = update.effective_message.new_chat_members
 
-        # 1. Raid check (pehle)
-        if await raid.check_join(update, context, member):
-            return
+    # 1. Raid check (check_raid khud saare naye members log karta hai)
+    if await raid.check_raid(update, context):
+        return
 
-        # 2. Captcha — mode ke hisaab se (math=original, button/image=naya)
-        mode = store.get_captcha_mode(chat.id)
-        if mode in ("button", "image"):
-            from handlers import captchaplus
+    # 2. Captcha — mode ke hisaab se
+    mode = store.get_captcha_mode(chat.id)
+    if mode in ("button", "image"):
+        for member in new_members:
+            if member.is_bot:
+                continue
             await captchaplus._restrict_and_send_captcha(
                 context, chat.id, member.id, member.mention_html()
             )
-        else:
-            # original math captcha — captcha.py ka apna flow
-            await captcha.on_new_member(update, context)
+    else:
+        # math mode — captcha.on_new_member khud pura update process karta hai
+        await captcha.on_new_member(update, context)
+
 
 async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_member = update.my_chat_member
@@ -240,37 +248,35 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Spam score check
     if await spamscore.check_message(update, context):
         return
-        
-          # Global blocklist (gaali/scam words — hamesha on)
+
+    # Global blocklist (gaali/scam words — hamesha on, koi exempt nahi)
     if await blocklist.check_blocklist(update, context):
         return
 
-   # Anti-forward check
+    # Anti-forward check
     if await antiforward.check_forward(update, context):
         return
-    # ===== ORIGINAL PIPELINE (ye lines sabse zaroori hain) =====
+
+    # Raid ke baad wala soft slow-mode (fast messages delete)
+    if await raid.enforce_slowmode(update, context):
+        return
+
+    # Anti-spam / flood control
+    await antispam.check_flood(update, context)
+
+    # Word filters / link block
+    await filters_handler.check_filters(update, context)
+    await content_filter.check_links(update, context)
 
     # #hashtag notes — /save se bane notes trigger hote hain yahan
     await notes.check_note_trigger(update, context)
 
-    # Auto-responses (agar tumhare autoresponses.py me ye naam hai)
-    # await autoresponses.check_response(update, context)
-
-    # Anti-spam / flood control
-    # await antispam.check_flood(update, context)
-
-    # Word filters / link block
-    # await filters_handler.check_filters(update, context)
-    # await content_filter.check_links(update, context)
+    # Auto-responses
+    await autoresponses.check_response(update, context)
 
     # XP system
-    import random
-    from config import XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE, XP_COOLDOWN_SECONDS
     db.add_xp(chat.id, user.id, random.randint(XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE),
               XP_COOLDOWN_SECONDS)
-    # ... tumhara existing pipeline yahan aage chalta rahega:
-    # filters, anti-spam, links, media restriction, notes (#trigger), autoresponses, XP
-    # (ye sab tumhare original on_group_message me the — unhe yahan waise hi rakho)
 
 
 def main():
@@ -282,7 +288,7 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(CommandHandler("setleave", welcome.cmd_setleave))   # setwelcome wali line ke saath
+    app.add_handler(CommandHandler("setleave", welcome.cmd_setleave))
     app.add_handler(CallbackQueryHandler(on_help_callback, pattern=r"^help:"))
 
     # Basic
@@ -384,7 +390,7 @@ def main():
     app.add_handler(CommandHandler("gban", gban.cmd_gban))
     app.add_handler(CommandHandler("ungban", gban.cmd_ungban))
     app.add_handler(CommandHandler("gbans", gban.cmd_gbans))
-    app.add_handler(CommandHandler("antiforward", antiforward.cmd_antiforward))  # NAYE COMMANDS section me
+    app.add_handler(CommandHandler("antiforward", antiforward.cmd_antiforward))
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
@@ -458,7 +464,7 @@ def main():
 
 def schedule_startup_jobs(app: Application):
     nightmode.schedule_all_night_modes(app)
-    scheduler.rearm_schedules(app)  # naya: scheduled messages restart-proof
+    scheduler.rearm_schedules(app)
 
 
 if __name__ == "__main__":
