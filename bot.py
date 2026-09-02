@@ -66,6 +66,7 @@ from handlers import (
     blocklist,
     security,
     settings_panel,
+    extra2,
 )
 
 logging.basicConfig(
@@ -107,6 +108,10 @@ HELP_PAGES = {
         "🧠 /quiz — quiz banao, dimag ki batti jalaо 💡\n"
         "📖 /define &lt;word&gt; — meaning dekho, dictionary wala bhai\n"
         "⏰ /remindme &lt;time&gt; &lt;text&gt; — bhoolne walon ke liye special 🧠"
+        "🌤️ /weather &lt;city&gt; — mausam dekho\n"
+        "📚 /wiki &lt;topic&gt; — Wikipedia se gyan\n"
+        "🧮 /calc &lt;expr&gt; — calculator\n"
+        "🎮 /guess — guessing game khelo"
     ),
     "medium": (
         "🟡 <b>MEDIUM COMMANDS</b> <i>(admin level-up)</i>\n"
@@ -134,6 +139,9 @@ HELP_PAGES = {
         "⚙️ /nightmode — raat ko group so jayega 🌙\n"
         "⚙️ /setnighttime — sone ka time set karo 😴\n\n"
         "🤖 <b>Automation:</b>\n"
+        "🌐 /shorturl &lt;link&gt; — lamba link chhota karo\n"
+        "📱 /qr &lt;text&gt; — QR code banao\n"
+        "🕐 /time — duniya ka time"
         "📝 /addresponse /delresponse /responses — auto-reply, bot khud jawab dega\n"
         "📝 /alias /unalias /aliases — command ka nickname banao\n"
         "📅 /schedule /scheduled /unsched — message time pe bhejo, alarm jaisa ⏰\n"
@@ -438,6 +446,13 @@ def main():
     app.add_handler(CommandHandler("alloweddomains", security.cmd_alloweddomains))
     app.add_handler(CommandHandler("securitystatus", security.cmd_securitystatus))
     app.add_handler(CommandHandler("quarantine", security.cmd_quarantine))
+    app.add_handler(CommandHandler("weather", extra.cmd_weather))
+    app.add_handler(CommandHandler("wiki", extra.cmd_wiki))
+    app.add_handler(CommandHandler("qr", extra.cmd_qr))
+    app.add_handler(CommandHandler("calc", extra.cmd_calc))
+    app.add_handler(CommandHandler("time", extra.cmd_time))
+    app.add_handler(CommandHandler("shorturl", extra.cmd_shorturl))
+    app.add_handler(CommandHandler("guess", extra.cmd_guess))
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
