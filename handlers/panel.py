@@ -56,7 +56,6 @@ class PanelLogHandler(logging.Handler):
         if record.levelno >= logging.WARNING:
             _error_logs.append(line)
 
-
 log_handler = PanelLogHandler()
 log_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 
@@ -82,14 +81,20 @@ async def _safe_edit(query, text: str, kb: InlineKeyboardMarkup):
 
 def home_text() -> str:
     return (
-        f"👋 <b>Namaste! Main {html.escape(BOT_NAME)} hoon</b> — tumhara group ka personal bodyguard. 😎\n\n"
-        "Main yahan sab kuch sambhalta hoon:\n"
-        "🛡️ Spam, gaaliya aur raid — sab meri nazar me\n"
-        "🤖 Captcha, welcome, night mode — sab automatic\n"
-        "🏆 XP, leaderboard, reminders — maza bhi, kaam bhi\n\n"
-        "Neeche wale button dabao aur chuna lo kya karna hai. "
-        "Koi dikkat ho to group me /sethelp chala lo — main pyaare pyaare samjha dunga. 💛"
-    )
+    f"🤖 <b>Welcome to {html.escape(BOT_NAME)}!</b>\n"
+    "<i>Group Management, Simplified.</i>\n"
+    "━━━━━━━━━━━━━━━━━━━━\n\n"
+    "Aapke Telegram groups ko safe, active aur engaging rakhne ka all-in-one solution. ⚡\n\n"
+    "🛡️ <b>Key Features:</b>\n"
+    " ├ 🛑 <b>Anti-Spam & Raid Protection</b>\n"
+    " ├ ⚙️ <b>Advanced Filters & Custom Notes</b>\n"
+    " ├ 📈 <b>XP System & Leaderboards</b>\n"
+    " └ 📊 <b>Polls, Mini-Games & Utility Tools</b>\n\n"
+    "✅ Sab kuch ek jagah, bilkul FREE!\n\n"
+    "👇 Neeche diye gaye buttons se option chuno:\n\n"
+    "📢 <b>Updates:</b> @theteamvb\n"
+    "🌟 <b>Made with ❤️ TEAMVB</b>"
+)
 
 
 def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
