@@ -212,7 +212,6 @@ async def on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Full passive pipeline — har normal group text message pe."""
     user = update.effective_user
     chat = update.effective_chat
