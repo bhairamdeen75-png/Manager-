@@ -57,6 +57,7 @@ from handlers import (
     activity,
     antiedit,
     gban,
+    antiforward,
 )
 
 logging.basicConfig(
@@ -239,6 +240,9 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await spamscore.check_message(update, context):
         return
 
+# Anti-forward check
+    if await antiforward.check_forward(update, context):
+        return
     # ===== ORIGINAL PIPELINE (ye lines sabse zaroori hain) =====
 
     # #hashtag notes — /save se bane notes trigger hote hain yahan
@@ -375,6 +379,7 @@ def main():
     app.add_handler(CommandHandler("gban", gban.cmd_gban))
     app.add_handler(CommandHandler("ungban", gban.cmd_ungban))
     app.add_handler(CommandHandler("gbans", gban.cmd_gbans))
+    app.add_handler(CommandHandler("antiforward", antiforward.cmd_antiforward))  # NAYE COMMANDS section me
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
