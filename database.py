@@ -425,6 +425,20 @@ def get_bot_wide_stats():
         "commands": total_commands,
     }
 
+# ---------------- Leave message ----------------
+
+def set_leave_message(chat_id: int, text: str):
+    settings_col.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"leave_msg": text}},
+        upsert=True,
+    )
+
+
+def get_leave_message(chat_id: int):
+    doc = settings_col.find_one({"chat_id": chat_id})
+    return doc.get("leave_msg") if doc else None
+
 def export_group_data(chat_id):
     """Saare collections se is group ka data nikaalo."""
     out = {}
@@ -450,3 +464,4 @@ def import_group_data(chat_id, data):
             coll.insert_one(doc)
             count += 1
     return count
+
