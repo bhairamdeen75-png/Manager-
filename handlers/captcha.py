@@ -1,4 +1,6 @@
 import random
+import logging
+logger = logging.getLogger(__name__)
 
 from telegram import (
     Update,
@@ -130,8 +132,8 @@ async def on_captcha_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ),
             )
         except Exception:
-            logger.warning("Restrict failed for %s in %s — bot ko 'Ban users' permission chahiye!", chat.id, membechat.idr.id)
-            
+               logger.warning("Restrict failed for %s — bot ko 'Ban users' permission chahiye!", chat_id)
+    
         welcome_text = db.get_welcome(chat_id) or "🎉 Verify ho gaya! Group rules follow karo aur enjoy karo."
         await query.edit_message_text(f"✅ Verification successful!\n\n{welcome_text}")
         await query.answer("Verified!")
