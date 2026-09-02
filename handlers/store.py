@@ -17,6 +17,7 @@ gbans = _db["global_bans"]
 activity = _db["activity"]
 bans_log = _db["bans_log"]
 settings = _db["extras_settings"]
+globalbans = _db["global_bans"]
 
 
 def _now():
