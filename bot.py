@@ -212,21 +212,27 @@ async def on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Full passive pipeline — har normal group text message pe."""
     user = update.effective_user
     chat = update.effective_chat
-    if not user or not chat:
+    msg = update.effective_message
+    if not user or not chat or not msg or user.is_bot:
         return
 
-    # Activity tracking (for /activity chart)
-    if not user.is_bot:
-        db.bump_activity(chat.id, user.id)
+    # Group registry + seen users (/tagall aur panel ke liye)
+    db.track_group(chat.id, chat.title or "Group")
+    db.track_user(chat.id, user.id, user.username or "", user.first_name or "")
+    db.increment_message_count(chat.id)
 
-    # Image captcha answer check (agar user image captcha solve kar raha hai)
+    # Activity tracking (/activity chart ke liye)
+    store.bump_activity(chat.id, user.id)
+
+    # Image captcha answer check
     if await captchaplus.on_image_captcha_text(update, context):
         return
 
-    # Global ban check — gbanned user turant ban
+    # Global ban check
     if await gban.on_gban_check(update, context):
         return
 
@@ -234,6 +240,26 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await spamscore.check_message(update, context):
         return
 
+    # ===== ORIGINAL PIPELINE (ye lines sabse zaroori hain) =====
+
+    # #hashtag notes — /save se bane notes trigger hote hain yahan
+    await notes.check_note_trigger(update, context)
+
+    # Auto-responses (agar tumhare autoresponses.py me ye naam hai)
+    # await autoresponses.check_response(update, context)
+
+    # Anti-spam / flood control
+    # await antispam.check_flood(update, context)
+
+    # Word filters / link block
+    # await filters_handler.check_filters(update, context)
+    # await content_filter.check_links(update, context)
+
+    # XP system
+    import random
+    from config import XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE, XP_COOLDOWN_SECONDS
+    db.add_xp(chat.id, user.id, random.randint(XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE),
+              XP_COOLDOWN_SECONDS)
     # ... tumhara existing pipeline yahan aage chalta rahega:
     # filters, anti-spam, links, media restriction, notes (#trigger), autoresponses, XP
     # (ye sab tumhare original on_group_message me the — unhe yahan waise hi rakho)
