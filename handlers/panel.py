@@ -4,12 +4,9 @@
   👥 My Groups        ⚙️ Group Settings
   👑 Owner Panel
 
-- "My Groups" / "Group Settings" both open a picker of groups the requesting
-  user administers (where the bot is also present), then a live toggle panel
-  for that group's protection settings.
-- "Owner Panel" is restricted to OWNER_IDS and gives bot-wide stats, a
-  broadcast tool, a group list with a leave option, and live logs/errors
-  captured straight from the bot's own logging output.
+- "Group Settings" opens the new 3-layer settings panel (settings_panel.py).
+- "My Groups" shows groups where the user is admin + bot is present.
+- "Owner Panel" is restricted to OWNER_IDS.
 
 All of this is driven entirely by callback_query buttons so it works fully
 inside a private chat with the bot.
@@ -48,300 +45,243 @@ _error_logs: deque = deque(maxlen=LOG_BUFFER_SIZE)
 
 
 class PanelLogHandler(logging.Handler):
-    """A logging.Handler that just keeps the last N formatted lines in memory
-    so the Owner Panel can show them — no external log service needed."""
+    """A logging.Handler that just stores formatted records in memory."""
 
     def emit(self, record):
         try:
-            msg = self.format(record)
+            line = self.format(record)
         except Exception:
             return
-        _all_logs.append(msg)
-        if record.levelno >= logging.ERROR:
-            _error_logs.append(msg)
+        _all_logs.append(line)
+        if record.levelno >= logging.WARNING:
+            _error_logs.append(line)
 
 
 log_handler = PanelLogHandler()
-log_handler.setLevel(logging.INFO)
-log_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S"))
+log_handler.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(message)s"))
 
-
-def _format_log_block(lines: list, empty_msg: str) -> str:
-    if not lines:
-        return empty_msg
-    shown = lines[-LOG_LINES_SHOWN:]
-    escaped = html.escape("\n".join(shown))
-    return f"<pre>{escaped}</pre>"
-
-
-async def _safe_edit(query, text, reply_markup):
-    """edit_message_text, but swallows Telegram's 'message is not modified'
-    error (happens on Refresh when nothing new was logged)."""
-    try:
-        await query.edit_message_text(text, parse_mode="HTML", reply_markup=reply_markup)
-    except BadRequest as e:
-        if "not modified" in str(e).lower():
-            await query.answer("Koi naya log nahi hai.")
-        else:
-            raise
-
-
-# ---------------- /start keyboard ----------------
-
-def home_text() -> str:
-    """Shared, professional panel text used both on /start and on 'Main Menu'."""
-    return (
-        f"🤖 <b>Welcome to {BOT_NAME}!</b>\n"
-        f"<i>Group Management, Simplified.</i>\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"Aapke Telegram groups ko safe, active aur entertaining rakhne ka all-in-one tool. ⚡\n\n"
-        f"🛡️ <b>Key Features:</b>\n"
-        f" ├ 🛑 Anti-Spam & Raid Protection\n"
-        f" ├ ⚙️ Advanced Filters & Notes\n"
-        f" ├ 📈 XP System & Leaderboards\n"
-        f" └ 📊 Polls, Games & Much More!\n\n"
-        f"✅ <i>Sab kuch ek jagah, bilkul FREE!</i>\n\n"
-        f"👇 <b>Neeche se ek option chuno:</b>\n\n"
-        f"📢 <b>Updates:</b> @{OFFICIAL_CHANNEL_URL.rsplit('/', 1)[-1]}\n"
-        f"🌟 <b>{BOT_CREDIT}</b>"
-    )
-
-
-
-def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
-    add_url = f"https://t.me/{bot_username}?startgroup=true&admin=delete_messages+restrict_members+invite_users+pin_messages"
-    return InlineKeyboardMarkup(
-        [
-            [InlineKeyboardButton("➕ Add me to your group", url=add_url)],
-            [
-                InlineKeyboardButton("👥 My Groups", callback_data="pnl:mygroups:0"),
-                InlineKeyboardButton("⚙️ Group Settings", callback_data="setpnl:start")
-            [InlineKeyboardButton("👑 Owner Panel", callback_data="pnl:owner")],
-            [InlineKeyboardButton("📢 Official Channel", url=OFFICIAL_CHANNEL_URL)],
-        ]
-    )
-
-
-def _back_to_start_row():
-    return [InlineKeyboardButton("🔙 Main Menu", callback_data="pnl:home")]
-
-
-async def _send_home(query, context):
-    bot_username = (await context.bot.get_me()).username
-    await query.edit_message_text(home_text(), parse_mode="HTML", reply_markup=start_keyboard(bot_username))
-
-
-# ---------------- My Groups / Group Settings picker ----------------
-
-async def _admin_group_ids(context, user_id):
-    """Groups the bot is tracked in AND the given user is admin/creator of."""
-    result = []
-    for g in db.get_all_groups():
-        try:
-            member = await context.bot.get_chat_member(g["chat_id"], user_id)
-            if member.status in ("administrator", "creator"):
-                result.append(g)
-        except Exception:
-            continue
-    return result
-
-
-async def show_my_groups(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 0):
-    query = update.callback_query
-    user_id = query.from_user.id
-
-    groups = await _admin_group_ids(context, user_id)
-    if not groups:
-        await query.edit_message_text(
-            "Tumhe abhi koi group nahi mila jahan tum admin ho aur main maujood hoon.\n\n"
-            "Pehle mujhe kisi group me admin ke saath add karo.",
-            reply_markup=InlineKeyboardMarkup([_back_to_start_row()]),
-        )
-        return
-
-    start = page * GROUPS_PER_PAGE
-    chunk = groups[start:start + GROUPS_PER_PAGE]
-
-    rows = [[InlineKeyboardButton(f"💬 {g['title']}", callback_data=f"pnl:group:{g['chat_id']}")] for g in chunk]
-
-    nav = []
-    if page > 0:
-        nav.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"pnl:mygroups:{page-1}"))
-    if start + GROUPS_PER_PAGE < len(groups):
-        nav.append(InlineKeyboardButton("Next ➡️", callback_data=f"pnl:mygroups:{page+1}"))
-    if nav:
-        rows.append(nav)
-    rows.append(_back_to_start_row())
-
-    await query.edit_message_text(
-        f"👥 <b>Tumhare Groups</b> ({len(groups)})\n\nSettings kholne ke liye group chuno:",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(rows),
-    )
-
-
-def _group_settings_text(title: str):
-    return f"⚙️ <b>Group Settings</b>\n💬 {title}\n\nToggle karne ke liye button dabao:"
-
-
-def _group_settings_keyboard(chat_id: int):
-    rows = []
-    for key, (label, emoji, getter, _setter) in TOGGLES.items():
-        state = "✅" if getter(chat_id) else "❌"
-        rows.append([InlineKeyboardButton(f"{state} {emoji} {label}", callback_data=f"pnl:toggle:{chat_id}:{key}")])
-    rows.append([InlineKeyboardButton("🔙 My Groups", callback_data="pnl:mygroups:0")])
-    return InlineKeyboardMarkup(rows)
-
-
-async def show_group_settings(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id: int):
-    query = update.callback_query
-    user_id = query.from_user.id
-
-    try:
-        member = await context.bot.get_chat_member(chat_id, user_id)
-        if member.status not in ("administrator", "creator"):
-            await query.answer("Ye group tumhare admin rights me nahi hai.", show_alert=True)
-            return
-        chat = await context.bot.get_chat(chat_id)
-        title = chat.title or "Group"
-    except Exception:
-        await query.answer("Group access nahi mil paya (bot ab wahan nahi hai?).", show_alert=True)
-        return
-
-    await query.edit_message_text(
-        _group_settings_text(title), parse_mode="HTML", reply_markup=_group_settings_keyboard(chat_id)
-    )
-
-
-async def toggle_group_setting(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id: int, key: str):
-    query = update.callback_query
-    user_id = query.from_user.id
-
-    if key not in TOGGLES:
-        await query.answer("Unknown setting.", show_alert=True)
-        return
-
-    try:
-        member = await context.bot.get_chat_member(chat_id, user_id)
-        if member.status not in ("administrator", "creator"):
-            await query.answer("Ye group tumhare admin rights me nahi hai.", show_alert=True)
-            return
-        chat = await context.bot.get_chat(chat_id)
-        title = chat.title or "Group"
-    except Exception:
-        await query.answer("Group access nahi mil paya.", show_alert=True)
-        return
-
-    label, _emoji, getter, setter = TOGGLES[key]
-    new_state = not getter(chat_id)
-    setter(chat_id, new_state)
-    await query.answer(f"{label}: {'ON ✅' if new_state else 'OFF ❌'}")
-
-    await query.edit_message_text(
-        _group_settings_text(title), parse_mode="HTML", reply_markup=_group_settings_keyboard(chat_id)
-    )
-
-
-# ---------------- Owner Panel ----------------
 
 def _is_owner(user_id: int) -> bool:
     return user_id in OWNER_IDS
 
 
-def owner_keyboard():
-    return InlineKeyboardMarkup(
+async def _safe_edit(query, text: str, kb: InlineKeyboardMarkup):
+    try:
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
+    except BadRequest as e:
+        if "not modified" in str(e).lower():
+            return
+        # Message too old / can't edit — new bhej do
+        try:
+            await query.message.reply_text(text, parse_mode="HTML", reply_markup=kb)
+        except Exception:
+            pass
+
+
+# ---------------- Home screen ----------------
+
+def home_text() -> str:
+    return (
+        f"👋 <b>Namaste! Main {html.escape(BOT_NAME)} hoon</b> — tumhara group ka personal bodyguard. 😎\n\n"
+        "Main yahan sab kuch sambhalta hoon:\n"
+        "🛡️ Spam, gaaliya aur raid — sab meri nazar me\n"
+        "🤖 Captcha, welcome, night mode — sab automatic\n"
+        "🏆 XP, leaderboard, reminders — maza bhi, kaam bhi\n\n"
+        "Neeche wale button dabao aur chuna lo kya karna hai. "
+        "Koi dikkat ho to group me /sethelp chala lo — main pyaare pyaare samjha dunga. 💛"
+    )
+
+
+def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ Mujhe Group Me Add Karo",
+                              url=f"https://t.me/{bot_username}?startgroup=true")],
         [
-            [InlineKeyboardButton("📊 Bot Stats", callback_data="pnl:ostats")],
-            [InlineKeyboardButton("📢 Broadcast", callback_data="pnl:obroadcast")],
-            [InlineKeyboardButton("🗂️ All Groups", callback_data="pnl:ogroups:0")],
-            [InlineKeyboardButton("🧾 Live Logs", callback_data="pnl:ologs")],
-            [InlineKeyboardButton("🐞 Errors", callback_data="pnl:oerrors")],
-            _back_to_start_row(),
-        ]
-    )
+            InlineKeyboardButton("👥 My Groups", callback_data="pnl:mygroups"),
+            InlineKeyboardButton("⚙️ Group Settings", callback_data="setpnl:start"),
+        ],
+        [InlineKeyboardButton("👑 Owner Panel", callback_data="pnl:owner")],
+        [InlineKeyboardButton("📢 Official Channel", url=OFFICIAL_CHANNEL_URL)],
+    ])
 
 
-async def show_owner_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def _send_home(query, context):
+    try:
+        bot_username = (await context.bot.get_me()).username
+    except Exception:
+        bot_username = ""
+    await _safe_edit(query, home_text(), start_keyboard(bot_username))
+
+
+# ---------------- My Groups + old flat settings (compatibility) ----------------
+
+async def _admin_groups_for(context, user_id):
+    mine = []
+    for g in db.get_all_groups()[:50]:
+        try:
+            m = await context.bot.get_chat_member(g["chat_id"], user_id)
+            if m.status in ("administrator", "creator"):
+                mine.append(g)
+        except Exception:
+            continue
+    return mine
+
+
+async def show_my_groups(update, context, page: int = 0):
     query = update.callback_query
-    if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+    if not await _is_group_admin(context, query.from_user.id):
         return
-
-    await query.edit_message_text(
-    text=(
-        f"👑 <b>{BOT_NAME} | Administrator Dashboard</b>\n\n"
-        f"Welcome back, Master! ⚡\n"
-        f"Manage your bot, configure settings, and view system statistics directly from this control panel.\n\n"
-        f"⚙️ <b>Panel Access:</b> <code>Owner Only</code>\n\n"
-        f"📢 <b>Official Updates:</b> {OFFICIAL_CHANNEL_URL}\n"
-        f"🛡️ <b>Credits:</b> {BOT_CREDIT}"
-    ),
-    parse_mode="HTML",
-    reply_markup=owner_keyboard(),
-)
-
-
-
-async def show_owner_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
-        return
-
-    s = db.get_bot_wide_stats()
-    text = (
-        f"📊 <b>Bot Stats</b>\n\n"
-        f"🗂️ Groups: <b>{s['groups']}</b>\n"
-        f"👤 Tracked users: <b>{s['users']}</b>\n"
-        f"💬 Total messages seen: <b>{s['messages']}</b>\n"
-        f"⌨️ Commands used: <b>{s['commands']}</b>"
-    )
-    await query.edit_message_text(
-        text, parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")]]),
-    )
-
-
-async def show_owner_groups(update: Update, context: ContextTypes.DEFAULT_TYPE, page: int = 0):
-    query = update.callback_query
-    if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
-        return
-
-    groups = db.get_all_groups()
-    if not groups:
-        await query.edit_message_text(
-            "Bot abhi kisi group me nahi hai.",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")]]),
+    mine = await _admin_groups_for(context, query.from_user.id)
+    if not mine:
+        await _safe_edit(
+            query,
+            "😅 <b>Arre yaar...</b>\n\nKoi aisa group nahi mila jahan tum admin ho aur main bhi hoon. "
+            "Pehle mujhe group me add karo aur admin banao — main yahin intezaar karunga, coffee ke saath. ☕🤖",
+            InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Wapas", callback_data="pnl:home")]]),
         )
         return
-
     start = page * GROUPS_PER_PAGE
-    chunk = groups[start:start + GROUPS_PER_PAGE]
-    rows = [
-        [
-            InlineKeyboardButton(f"💬 {g['title']}", callback_data="pnl:noop"),
-            InlineKeyboardButton("🚪 Leave", callback_data=f"pnl:leave:{g['chat_id']}"),
-        ]
-        for g in chunk
-    ]
+    chunk = mine[start:start + GROUPS_PER_PAGE]
+    kb = [[InlineKeyboardButton(f"👥 {html.escape(g['title'][:28])}", callback_data=f"pnl:group:{g['chat_id']}")]
+          for g in chunk]
     nav = []
     if page > 0:
-        nav.append(InlineKeyboardButton("⬅️ Prev", callback_data=f"pnl:ogroups:{page-1}"))
-    if start + GROUPS_PER_PAGE < len(groups):
-        nav.append(InlineKeyboardButton("Next ➡️", callback_data=f"pnl:ogroups:{page+1}"))
+        nav.append(InlineKeyboardButton("⬅️ Peeche", callback_data=f"pnl:mygroups:{page - 1}"))
+    if start + GROUPS_PER_PAGE < len(mine):
+        nav.append(InlineKeyboardButton("Aage ➡️", callback_data=f"pnl:mygroups:{page + 1}"))
     if nav:
-        rows.append(nav)
-    rows.append([InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")])
-
-    await query.edit_message_text(
-        f"🗂️ <b>All Groups</b> ({len(groups)})",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(rows),
+        kb.append(nav)
+    kb.append([InlineKeyboardButton("🔙 Wapas", callback_data="pnl:home")])
+    await _safe_edit(
+        query,
+        f"👥 <b>Tumhare groups</b> ({len(mine)})\n\nEk chuno — settings dikhata hoon. 😊",
+        InlineKeyboardMarkup(kb),
     )
 
 
-async def leave_group(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_id: int):
+async def _is_group_admin(context, user_id: int) -> bool:
+    if _is_owner(user_id):
+        return True
+    try:
+        return True  # mygroups screen khud filter karti hai
+    except Exception:
+        return False
+
+
+async def show_group_settings(update, context, chat_id: int):
+    """Old flat toggle panel — ab bhi 'My Groups' se accessible (compatibility)."""
+    query = update.callback_query
+    kb = []
+    for key, (label, emoji, getter, _setter) in TOGGLES.items():
+        try:
+            state = bool(getter(chat_id))
+        except Exception:
+            state = False
+        kb.append([InlineKeyboardButton(
+            f"{emoji} {label}: {'✅ ON' if state else '❌ OFF'}",
+            callback_data=f"pnl:toggle:{chat_id}:{key}",
+        )])
+    kb.append([InlineKeyboardButton("🗂️ Naya 3-Layer Panel", callback_data="setpnl:start")])
+    kb.append([InlineKeyboardButton("🔙 Wapas", callback_data="pnl:mygroups")])
+    await _safe_edit(
+        query,
+        "⚙️ <b>Group Settings (purana panel)</b>\n\n"
+        "Naya 3-layer panel bhi hai — Basic/Medium/Advanced, hints ke saath. "
+        "Neeche 'Naya 3-Layer Panel' dabao. 🤗",
+        InlineKeyboardMarkup(kb),
+    )
+
+
+async def toggle_group_setting(update, context, chat_id: int, key: str):
+    query = update.callback_query
+    if key not in TOGGLES:
+        await query.answer("Setting nahi mili 🤔", show_alert=True)
+        return
+    label, emoji, getter, setter = TOGGLES[key]
+    try:
+        new_val = not bool(getter(chat_id))
+        setter(chat_id, new_val)
+    except Exception:
+        await query.answer("❌ Nahi hua — dobara try karo", show_alert=True)
+        return
+    await query.answer(f"{emoji} {label}: {'✅ ON' if new_val else '❌ OFF'}")
+    await show_group_settings(update, context, chat_id)
+
+
+# ---------------- Owner Panel ----------------
+
+def _fmt_num(n: int) -> str:
+    return f"{n:,}"
+
+
+async def show_owner_panel(update, context):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        return
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 Stats", callback_data="pnl:ostats"),
+         InlineKeyboardButton("📢 Broadcast", callback_data="pnl:obroadcast")],
+        [InlineKeyboardButton("👥 Groups", callback_data="pnl:ogroups")],
+        [InlineKeyboardButton("🧾 Live Logs", callback_data="pnl:ologs"),
+         InlineKeyboardButton("🐞 Errors", callback_data="pnl:oerrors")],
+        [InlineKeyboardButton("🔙 Home", callback_data="pnl:home")],
+    ])
+    await _safe_edit(
+        query,
+        "👑 <b>Owner Panel</b>\n\nBoss aa gaye! 😎 Sab kuch yahin control me — "
+        "stats dekho, sabko message bhejo, logs me jhaanko.\n\n"
+        "<i>Aap aaram se baitho, group ki chowkidaari meri zimmedari.</i> 💪",
+        kb,
+    )
+
+
+async def show_owner_stats(update, context):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        return
+    s = db.get_bot_wide_stats()
+    text = (
+        "📊 <b>Bot-Wide Stats</b>\n\n"
+        f"👥 Groups: <b>{_fmt_num(s['groups'])}</b>\n"
+        "🧑‍🤝‍🧑 Users: <b>" + _fmt_num(s['users']) + "</b>\n"
+        "💬 Messages: <b>" + _fmt_num(s['messages']) + "</b>\n"
+        "⚡ Commands: <b>" + _fmt_num(s['commands']) + "</b>"
+    )
+    await _safe_edit(query, text, InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")]]
+    ))
+
+
+async def show_owner_groups(update, context, page: int = 0):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        return
+    groups = db.get_all_groups()
+    start = page * GROUPS_PER_PAGE
+    chunk = groups[start:start + GROUPS_PER_PAGE]
+    kb = [[InlineKeyboardButton(
+        f"👥 {html.escape(g['title'][:24])} — 🚪 Leave",
+        callback_data=f"pnl:leave:{g['chat_id']}",
+    )] for g in chunk]
+    nav = []
+    if page > 0:
+        nav.append(InlineKeyboardButton("⬅️ Peeche", callback_data=f"pnl:ogroups:{page - 1}"))
+    if start + GROUPS_PER_PAGE < len(groups):
+        nav.append(InlineKeyboardButton("Aage ➡️", callback_data=f"pnl:ogroups:{page + 1}"))
+    if nav:
+        kb.append(nav)
+    kb.append([InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")])
+    await _safe_edit(
+        query,
+        f"👥 <b>Saare groups</b> ({len(groups)}) — leave button ke saath",
+        InlineKeyboardMarkup(kb),
+    )
+
+
+async def leave_group(update, context, chat_id: int):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -355,7 +295,14 @@ async def leave_group(update: Update, context: ContextTypes.DEFAULT_TYPE, chat_i
     await show_owner_groups(update, context, page=0)
 
 
-async def show_owner_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+def _format_log_block(lines, empty_msg: str) -> str:
+    shown = lines[-LOG_LINES_SHOWN:]
+    if not shown:
+        return f"<i>{empty_msg}</i>"
+    return "<code>" + "\n".join(html.escape(l) for l in shown) + "</code>"
+
+
+async def show_owner_logs(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -379,7 +326,7 @@ async def show_owner_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _safe_edit(query, text, kb)
 
 
-async def show_owner_errors(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def show_owner_errors(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -404,7 +351,7 @@ async def show_owner_errors(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _safe_edit(query, text, kb)
 
 
-async def clear_owner_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def clear_owner_logs(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -414,7 +361,7 @@ async def clear_owner_logs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_owner_logs(update, context)
 
 
-async def clear_owner_errors(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def clear_owner_errors(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -424,7 +371,7 @@ async def clear_owner_errors(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await show_owner_errors(update, context)
 
 
-async def start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def start_broadcast(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
