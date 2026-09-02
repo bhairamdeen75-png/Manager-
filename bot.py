@@ -1,6 +1,7 @@
 import logging
 
 from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup  
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -72,43 +73,99 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         panel.home_text(), parse_mode="HTML", reply_markup=panel.start_keyboard(bot_username)
     )
 
+HELP_PAGES = {
+    "basic": (
+        "🟢 <b>BASIC COMMANDS</b>\n\n"
+        "👋 /start — control panel\n"
+        "👋 /help — ye help menu\n\n"
+        "👮 <b>Moderation (reply karke):</b>\n"
+        "👮 /mute — user chup karao\n"
+        "👮 /unmute — bolne do\n"
+        "👮 /kick — group se nikalo\n"
+        "👮 /warn — warning do\n"
+        "👮 /warnings — warnings dekho\n\n"
+        "📢 /tagall — sabko tag karo\n"
+        "📝 /save &lt;name&gt; reply se — note banao\n"
+        "📝 #name — note dekho\n"
+        "📊 /rank — apna XP\n"
+        "🏆 /leaderboard — top users\n"
+        "🎲 /poll — poll banao\n"
+        "🧠 /quiz — quiz banao\n"
+        "📖 /define &lt;word&gt; — meaning\n"
+        "⏰ /remindme &lt;time&gt; &lt;text&gt; — reminder"
+    ),
+    "medium": (
+        "🟡 <b>MEDIUM COMMANDS</b>\n\n"
+        "👮 <b>Moderation:</b>\n"
+        "👮 /ban /unban &lt;user_id&gt;\n"
+        "👮 /unwarn /status /report\n\n"
+        "🛡️ <b>Protection:</b>\n"
+        "🛡️ /addfilter /removefilter /filters\n"
+        "🛡️ /lock /unlock — group lock\n"
+        "🛡️ /setlinkblock on|off — links block\n"
+        "🛡️ /restrictmedia — media restrict\n"
+        "🛡️ /purge — bulk delete (reply se)\n\n"
+        "⚙️ <b>Setup:</b>\n"
+        "⚙️ /setwelcome — welcome message\n"
+        "⚙️ /setleave — leave message\n"
+        "⚙️ /setrules /rules — rules\n"
+        "⚙️ /setlogchannel — log channel\n"
+        "⚙️ /nightmode /setnighttime\n\n"
+        "📝 /addresponse /delresponse /responses\n"
+        "📝 /alias /unalias /aliases\n"
+        "📝 /schedule /scheduled /unsched\n"
+        "🍅 /pomodoro /pomodorostop"
+    ),
+    "advanced": (
+        "🔴 <b>ADVANCED COMMANDS</b>\n\n"
+        "🛡️ <b>Advanced Protection:</b>\n"
+        "🛡️ /raidprotection on|off\n"
+        "🛡️ /setraidlimits &lt;joins&gt; &lt;seconds&gt;\n"
+        "🛡️ /setcaptchamode math|button|image\n"
+        "🛡️ /approve /unapprove /approved\n"
+        "✏️ (anti-edit spam automatic hai)\n"
+        "📺 (anti-channel-spam automatic hai)\n\n"
+        "⚙️ <b>Advanced Setup:</b>\n"
+        "⚙️ /rulesgate on|off — rules accept gate\n"
+        "⚙️ /autopin — admin msgs auto-pin\n"
+        "⚙️ /autodeletejoinleave on|off\n"
+        "⚙️ /setwmedia /setwbtn — welcome media\n"
+        "⚙️ /clearwmedia /clearwbtn\n\n"
+        "🎉 /invites /invitetop — invite leaderboard\n"
+        "📊 /activity — 7-day activity chart\n"
+        "🌐 /tr &lt;lang&gt; — translate\n"
+        "⚖️ /appeal — ban appeal (DM me)\n\n"
+        "👑 <b>Owner only:</b>\n"
+        "👑 /backup /restore\n"
+        "👑 /gban /ungban /gbans\n"
+        "👑 /removelogchannel"
+    ),
+}
+
 
 async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        f"🗂️ <b>{BOT_NAME} — Command List</b>\n"
-        f"<i>{BOT_CREDIT}</i>\n\n"
-        "🕵️ <b>/start</b> — control panel kholo\n"
-        "🕵️ <b>/help</b> — ye list dobara dekho\n\n"
-        "👮 <b>Moderation</b>\n"
-        "👮 /mute /unmute /ban /unban /kick /warn /unwarn /warnings\n"
-        "👮 /purge /report /status\n\n"
-        "🛡️ <b>Protection</b>\n"
-        "🛡️ /addfilter /removefilter /filters\n"
-        "🛡️ /setlinkblock /restrictmedia /raidprotection /setraidlimits /lock /unlock\n"
-        "🛡️ /setcaptchamode math|button|image\n"
-        "🛡️ /approve /unapprove /approved\n\n"
-        "⚙️ <b>Setup</b>\n"
-        "⚙️ /setlogchannel /removelogchannel /nightmode /setnighttime\n"
-        "⚙️ /setwelcome /setrules /rules /rulesgate /autodeletejoinleave /autopin\n"
-        "⚙️ /setwmedia /setwbtn /clearwmedia /clearwbtn\n\n"
-        "📝 <b>Utility</b>\n"
-        "📝 /save /clear /notes — notes\n"
-        "📝 /addresponse /delresponse /responses — auto-responses\n"
-        "📝 /alias /unalias /aliases — command aliases\n"
-        "📝 /schedule /scheduled /unsched — scheduled messages\n"
-        "📝 /remindme /pomodoro /pomodorostop /define\n\n"
-        "🎉 <b>Fun & Engagement</b>\n"
-        "🎉 /tagall /all /rank /leaderboard /poll /quiz\n"
-        "🎉 /invites /invitetop — invite leaderboard\n"
-        "🎉 /tr <lang> — translate\n"
-        "🎉 /activity — 7-day activity chart\n\n"
-        "⚖️ <b>Appeals</b>\n"
-        "⚖️ /appeal <reason> — ban/warn ka review (DM me)\n\n"
-        "📦 <b>Backup</b>\n"
-        "📦 /backup /restore"
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 Basic", callback_data="help:basic"),
+         InlineKeyboardButton("🟡 Medium", callback_data="help:medium")],
+        [InlineKeyboardButton("🔴 Advanced", callback_data="help:advanced")],
+    ])
+    await update.message.reply_text(
+        "🗂️ <b>Command Help</b> — layer choose karo:",
+        parse_mode="HTML",
+        reply_markup=kb,
     )
-    await update.message.reply_text(text, parse_mode="HTML")
 
+
+async def on_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    page = query.data.split(":")[1]
+    text = HELP_PAGES.get(page, HELP_PAGES["basic"])
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🟢 Basic", callback_data="help:basic"),
+         InlineKeyboardButton("🟡 Medium", callback_data="help:medium")],
+        [InlineKeyboardButton("🔴 Advanced", callback_data="help:advanced")],
+    ])
+    await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
 async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
@@ -190,6 +247,9 @@ def main():
     keep_alive()
 
     app = Application.builder().token(BOT_TOKEN).build()
+
+    app.add_handler(CommandHandler("setleave", welcome.cmd_setleave))   # setwelcome wali line ke saath
+    app.add_handler(CallbackQueryHandler(on_help_callback, pattern=r"^help:"))
 
     # Basic
     app.add_handler(CommandHandler("start", cmd_start))
