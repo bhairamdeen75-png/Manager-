@@ -332,6 +332,10 @@ def get_leaderboard(chat_id: int, limit: int = 10):
     return [{"user_id": d["user_id"], "xp": d["xp"]} for d in docs]
 
 
+def get_xp_chats():
+    """Saare groups jinhone kabhi XP kamaya hai — hourly leaderboard post ke liye."""
+    return [c for c in xp_col.distinct("chat_id") if c > 0]
+
 # ---------------- Seen users (for /tagall) ----------------
 
 def track_user(chat_id: int, user_id: int, username: str, first_name: str):
