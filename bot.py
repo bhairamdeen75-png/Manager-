@@ -16,7 +16,7 @@ from telegram.ext import (
 
 from config import (
     BOT_TOKEN, BOT_NAME, BOT_CREDIT,
-    XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE, XP_COOLDOWN_SECONDS,
+    XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE, XP_COOLDOWN_SECONDS,LEADERBOARD_INTERVAL_MINUTES,
 )
 import database as db
 from keep_alive import keep_alive
@@ -498,6 +498,13 @@ def main():
 
     logger.info("%s starting... %s", BOT_NAME, BOT_CREDIT)
     app.run_polling(allowed_updates=Update.ALL_TYPES)
+
+    # Hourly XP leaderboard auto-post (har group me)
+    app.job_queue.run_repeating(
+        xp.post_hourly_leaderboards,
+        interval=LEADERBOARD_INTERVAL_MINUTES * 60,
+        first=LEADERBOARD_INTERVAL_MINUTES * 60,
+    )
 
 
 def schedule_startup_jobs(app: Application):
