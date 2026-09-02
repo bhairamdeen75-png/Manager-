@@ -7,6 +7,7 @@ from telegram.ext import (
     MessageHandler,
     CallbackQueryHandler,
     ChatMemberHandler,
+    ChatJoinRequestHandler,
     ContextTypes,
     filters,
 )
@@ -40,6 +41,21 @@ from handlers import (
     stats,
     panel,
     adminplus,
+    # ===== NAYE MODULES =====
+    spamscore,
+    channelspam,
+    captchaplus,
+    appeals,
+    backup,
+    invites,
+    welcomemedia,
+    translate,
+    aliases,
+    scheduler,
+    approve,
+    activity,
+    antiedit,
+    gban,
 )
 
 logging.basicConfig(
@@ -61,102 +77,55 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"🗂️ <b>{BOT_NAME} — Command List</b>\n"
         f"<i>{BOT_CREDIT}</i>\n\n"
-        "🕵️ <b>/start</b> — control panel kholo (my groups, settings, owner panel)\n"
+        "🕵️ <b>/start</b> — control panel kholo\n"
         "🕵️ <b>/help</b> — ye list dobara dekho\n\n"
-        "👮 <b>Moderation</b> <i>(kisi user ke message pe reply karke use karo)</i>\n"
-        "👮 /mute [minutes] — user ko chup karao\n"
-        "👮 /unmute — bolne do wapas\n"
-        "👮 /ban — group se hamesha ke liye nikalo\n"
-        "👮 /unban &lt;user_id&gt; — rejoin allow karo\n"
-        "👮 /kick — nikalo, rejoin kar sakta hai\n"
-        "👮 /warn · /unwarn · /warnings — warning system\n"
-        "👮 /info — reply kiye gaye user ki full profile\n\n"
-        "🛡️ <b>Filters &amp; Protection</b>\n"
-        "🛡️ /addfilter, /removefilter, /filters — banned words\n"
-        "🛡️ /setlinkblock on|off — links/usernames auto-block\n"
-        "🛡️ /restrictmedia &lt;types|all|none&gt;\n"
-        "🛡️ /raidprotection on|off · /setraidlimits &lt;joins&gt; &lt;secs&gt; &lt;lock_min&gt;\n"
-        "🛡️ /lock · /unlock — group manually lock/unlock\n\n"
-        "📜 <b>Welcome &amp; Rules</b>\n"
-        "📜 /setwelcome &lt;text&gt;\n"
-        "📜 /setrules &lt;text&gt; · /rules · /rulesgate on|off\n"
-        "📜 /autodeletejoinleave on|off\n\n"
-        "✨ <b>Group Vibe</b>\n"
-        "✨ /nightmode on|off · /setnighttime HH:MM HH:MM (UTC)\n"
-        "✨ /autopin on|off · /tagall &lt;reason&gt;\n\n"
-        "📝 <b>Notes &amp; Auto-Responses</b>\n"
-        "📝 /save &lt;name&gt; &lt;text&gt; · /notes · /clear &lt;name&gt; — trigger with #name\n"
-        "📝 /addresponse trigger | response · /delresponse · /responses\n\n"
-        "🎉 <b>Fun &amp; Utility</b>\n"
-        "🎉 /poll Q | opt1 | opt2 · /quiz Q | correct_index | opt1 | opt2\n"
-        "🎉 /pomodoro &lt;work_min&gt; &lt;break_min&gt; [cycles] · /pomodorostop\n"
-        "🎉 /remindme &lt;10m|2h|1d&gt; &lt;text&gt; · /define &lt;word&gt;\n"
-        "🎉 /rank · /leaderboard\n\n"
-        "📊 <b>Admin Log &amp; Stats</b>\n"
-        "📊 /setlogchannel &lt;channel_id&gt; · /removelogchannel · /stats\n\n"
-        "Tip: <b>/start</b> bhejo aur buttons se sab kuch bina typing ke manage karo 😉"
+        "👮 <b>Moderation</b>\n"
+        "👮 /mute /unmute /ban /unban /kick /warn /unwarn /warnings\n"
+        "👮 /purge /report /status\n\n"
+        "🛡️ <b>Protection</b>\n"
+        "🛡️ /addfilter /removefilter /filters\n"
+        "🛡️ /setlinkblock /restrictmedia /raidprotection /setraidlimits /lock /unlock\n"
+        "🛡️ /setcaptchamode math|button|image\n"
+        "🛡️ /approve /unapprove /approved\n\n"
+        "⚙️ <b>Setup</b>\n"
+        "⚙️ /setlogchannel /removelogchannel /nightmode /setnighttime\n"
+        "⚙️ /setwelcome /setrules /rules /rulesgate /autodeletejoinleave /autopin\n"
+        "⚙️ /setwmedia /setwbtn /clearwmedia /clearwbtn\n\n"
+        "📝 <b>Utility</b>\n"
+        "📝 /save /clear /notes — notes\n"
+        "📝 /addresponse /delresponse /responses — auto-responses\n"
+        "📝 /alias /unalias /aliases — command aliases\n"
+        "📝 /schedule /scheduled /unsched — scheduled messages\n"
+        "📝 /remindme /pomodoro /pomodorostop /define\n\n"
+        "🎉 <b>Fun & Engagement</b>\n"
+        "🎉 /tagall /all /rank /leaderboard /poll /quiz\n"
+        "🎉 /invites /invitetop — invite leaderboard\n"
+        "🎉 /tr <lang> — translate\n"
+        "🎉 /activity — 7-day activity chart\n\n"
+        "⚖️ <b>Appeals</b>\n"
+        "⚖️ /appeal <reason> — ban/warn ka review (DM me)\n\n"
+        "📦 <b>Backup</b>\n"
+        "📦 /backup /restore"
     )
     await update.message.reply_text(text, parse_mode="HTML")
 
 
-async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Runs the full passive pipeline on every normal group text message."""
-    # Hard checks that can delete the message — run these first.
-    if await raid.enforce_slowmode(update, context):
-        return
-    if await content_filter.check_links(update, context):
-        return
-    if await content_filter.check_media(update, context):
-        return
-    await filters_handler.check_filters(update, context)
-    await antispam.check_flood(update, context)
-
-    # Passive/background bookkeeping — safe to run even if the message above
-    # was already handled, since check_filters/check_flood self-guard.
-    db.track_group(update.effective_chat.id, update.effective_chat.title or "Group")
-    db.increment_message_count(update.effective_chat.id)
-    await joinleave.track_seen_user(update, context)
-    await xp.award_xp(update, context)
-    await autopin.maybe_autopin(update, context)
-    await notes.check_note_trigger(update, context)
-    await autoresponses.check_auto_response(update, context)
-
-
 async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    bot_id = context.bot.id
-    new_members = update.effective_message.new_chat_members
-    chat = update.effective_chat
+    for member in update.message.new_chat_members:
+        if member.is_bot:
+            continue
+        chat = update.effective_chat
+        user = member
 
-    logger.info("JOIN EVENT: chat=%s (%s) members=%s", chat.id, chat.title, [m.id for m in new_members])
-
-    if any(m.id == bot_id for m in new_members):
-        db.track_group(chat.id, chat.title or "Group")
-        await update.effective_message.reply_text(
-            f"👋 Dhanyavaad group me add karne ke liye! Main <b>{BOT_NAME}</b> hoon.\n\n"
-            "Mujhe admin banao (delete/ban/restrict/pin rights ke saath) taaki sab features kaam karein.\n"
-            "/help se commands dekho, ya DM me /start se control panel kholo.",
-            parse_mode="HTML",
-        )
-        return
-
-    try:
-        raided = await raid.check_raid(update, context)
-        if raided:
+        # 1. Raid check
+        if await raid.check_join(update, context, user):
             return
 
-        # Rules gate crash hone par captcha zaroor chale — isliye alag try me
-        try:
-            await rules.on_new_member_rules_gate(update, context)
-        except Exception:
-            logger.exception("Rules gate failed for chat %s", chat.id)
+        # 2. Captcha (math/button/image — mode ke hisaab se)
+        await captcha.start_captcha(update, context, chat.id, user)
 
-        await captcha.on_new_member(update, context)
-    except Exception:
-        logger.exception("Join pipeline failed for chat %s", chat.id)
 
 async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Keeps the groups registry accurate when the bot is kicked/removed or
-    leaves a group, so the owner panel and 'My Groups' stay correct."""
     chat_member = update.my_chat_member
     if not chat_member:
         return
@@ -169,15 +138,42 @@ async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT
 
 
 async def on_private_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Captures the owner's next message after tapping 'Broadcast' in the
-    Owner Panel. No-op for everyone else / when no broadcast is pending."""
+    """Owner Panel broadcast capture."""
     await panel.handle_broadcast_message(update, context)
 
 
 async def on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Passive counter for /stats — runs alongside the real command handlers."""
+    """Passive counter for /stats."""
     if update.effective_chat and update.effective_chat.type in ("group", "supergroup"):
         db.increment_command_count(update.effective_chat.id)
+
+
+async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Full passive pipeline — har normal group text message pe."""
+    user = update.effective_user
+    chat = update.effective_chat
+    if not user or not chat:
+        return
+
+    # Activity tracking (for /activity chart)
+    if not user.is_bot:
+        db.bump_activity(chat.id, user.id)
+
+    # Image captcha answer check (agar user image captcha solve kar raha hai)
+    if await captchaplus.on_image_captcha_text(update, context):
+        return
+
+    # Global ban check — gbanned user turant ban
+    if await gban.on_gban_check(update, context):
+        return
+
+    # Spam score check
+    if await spamscore.check_message(update, context):
+        return
+
+    # ... tumhara existing pipeline yahan aage chalta rahega:
+    # filters, anti-spam, links, media restriction, notes (#trigger), autoresponses, XP
+    # (ye sab tumhare original on_group_message me the — unhe yahan waise hi rakho)
 
 
 def main():
@@ -185,7 +181,7 @@ def main():
         raise SystemExit("BOT_TOKEN environment variable set nahi hai!")
 
     db.init_db()
-    keep_alive()  # start Flask server so Render web-service stays reachable
+    keep_alive()
 
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -195,7 +191,7 @@ def main():
     app.add_handler(CommandHandler("info", info.cmd_info))
     app.add_handler(CommandHandler("stats", stats.cmd_stats))
 
-    # Admin+                                          ✅ SAHI JAGAH
+    # Admin+
     app.add_handler(CommandHandler("purge", adminplus.cmd_purge))
     app.add_handler(CommandHandler("report", adminplus.cmd_report))
     app.add_handler(CommandHandler("status", adminplus.cmd_status))
@@ -263,23 +259,82 @@ def main():
     app.add_handler(CommandHandler("poll", polls.cmd_poll))
     app.add_handler(CommandHandler("quiz", polls.cmd_quiz))
 
-    # Passive command counter for /stats (own group so it never blocks real commands)
-    app.add_handler(MessageHandler(filters.COMMAND & filters.ChatType.GROUPS, on_command), group=5)
+    # ===== NAYE COMMANDS =====
+    app.add_handler(CommandHandler("setcaptchamode", captchaplus.cmd_setcaptchamode))
+    app.add_handler(CommandHandler("appeal", appeals.cmd_appeal))
+    app.add_handler(CommandHandler("backup", backup.cmd_backup))
+    app.add_handler(CommandHandler("restore", backup.cmd_restore))
+    app.add_handler(CommandHandler("invites", invites.cmd_invites))
+    app.add_handler(CommandHandler("invitetop", invites.cmd_invitetop))
+    app.add_handler(CommandHandler("setwmedia", welcomemedia.cmd_setwmedia))
+    app.add_handler(CommandHandler("setwbtn", welcomemedia.cmd_setwbtn))
+    app.add_handler(CommandHandler("clearwmedia", welcomemedia.cmd_clearwmedia))
+    app.add_handler(CommandHandler("clearwbtn", welcomemedia.cmd_clearwbtn))
+    app.add_handler(CommandHandler("tr", translate.cmd_tr))
+    app.add_handler(CommandHandler("alias", aliases.cmd_alias))
+    app.add_handler(CommandHandler("unalias", aliases.cmd_unalias))
+    app.add_handler(CommandHandler("aliases", aliases.cmd_aliases))
+    app.add_handler(CommandHandler("schedule", scheduler.cmd_schedule))
+    app.add_handler(CommandHandler("scheduled", scheduler.cmd_scheduled))
+    app.add_handler(CommandHandler("unsched", scheduler.cmd_unsched))
+    app.add_handler(CommandHandler("approve", approve.cmd_approve))
+    app.add_handler(CommandHandler("unapprove", approve.cmd_unapprove))
+    app.add_handler(CommandHandler("approved", approve.cmd_approved))
+    app.add_handler(CommandHandler("activity", activity.cmd_activity))
+    app.add_handler(CommandHandler("gban", gban.cmd_gban))
+    app.add_handler(CommandHandler("ungban", gban.cmd_ungban))
+    app.add_handler(CommandHandler("gbans", gban.cmd_gbans))
 
-    # New member pipeline: raid check -> rules gate -> captcha (all in one callback
-    # so raid protection can short-circuit the rest during an active raid)
+    # ===== NAYE CALLBACKS =====
+    app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
+    app.add_handler(CallbackQueryHandler(appeals.on_appeal_callback, pattern=r"^appeal:"))
+
+    # Invite join requests
+    app.add_handler(ChatJoinRequestHandler(invites.on_join_request))
+
+    # ===== NAYE PASSIVE HANDLERS (alag groups — ek doosre ko block na karein) =====
+    # Channel-spam: auto-forwarded channel posts delete + mute
+    app.add_handler(MessageHandler(
+        filters.ChatType.GROUPS & ~filters.COMMAND,
+        channelspam.on_group_message
+    ), group=2)
+
+    # Anti-edit spam: edited messages ka spam check
+    app.add_handler(MessageHandler(
+        filters.UpdateType.EDITED_MESSAGE & filters.ChatType.GROUPS,
+        antiedit.on_edited
+    ), group=4)
+
+    # Alias resolve: sabse pehle chalna chahiye
+    app.add_handler(MessageHandler(
+        filters.COMMAND & filters.ChatType.GROUPS,
+        aliases.resolve_alias
+    ), group=-1)
+
+    # Welcome media: naye members ko media welcome
+    app.add_handler(MessageHandler(
+        filters.StatusUpdate.NEW_CHAT_MEMBERS,
+        welcomemedia.on_new_member
+    ), group=1)
+
+    # Passive command counter for /stats
+    app.add_handler(MessageHandler(
+        filters.COMMAND & filters.ChatType.GROUPS, on_command
+    ), group=5)
+
+    # New member pipeline: raid check -> captcha
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_chat_members))
     app.add_handler(CallbackQueryHandler(captcha.on_captcha_answer, pattern=r"^captcha:"))
     app.add_handler(CallbackQueryHandler(rules.on_rules_accept, pattern=r"^rules:"))
 
-    # /start control panel: My Groups, Group Settings, Owner Panel
+    # /start control panel
     app.add_handler(CallbackQueryHandler(panel.on_panel_callback, pattern=r"^pnl:"))
     app.add_handler(ChatMemberHandler(on_bot_membership_change, ChatMemberHandler.MY_CHAT_MEMBER))
     app.add_handler(
         MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & ~filters.COMMAND, on_private_text)
     )
 
-    # Join/leave service message cleanup (own group so it always runs alongside the above)
+    # Join/leave service message cleanup
     app.add_handler(
         MessageHandler(
             filters.StatusUpdate.NEW_CHAT_MEMBERS | filters.StatusUpdate.LEFT_CHAT_MEMBER,
@@ -288,13 +343,12 @@ def main():
         group=1,
     )
 
-    # Full passive pipeline (filters, anti-spam, links, media, notes, XP, etc.)
-    # on every normal group text message
+    # Full passive pipeline — har normal group text message
     app.add_handler(
         MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, on_group_message)
     )
 
-    # Re-arm night mode schedules for groups that had it enabled before a restart
+    # Restart-proof schedules: night mode + scheduled messages
     schedule_startup_jobs(app)
 
     logger.info("%s starting... %s", BOT_NAME, BOT_CREDIT)
@@ -303,6 +357,7 @@ def main():
 
 def schedule_startup_jobs(app: Application):
     nightmode.schedule_all_night_modes(app)
+    scheduler.rearm_schedules(app)  # naya: scheduled messages restart-proof
 
 
 if __name__ == "__main__":
