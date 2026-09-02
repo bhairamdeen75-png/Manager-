@@ -111,19 +111,25 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
     for member in update.message.new_chat_members:
         if member.is_bot:
             continue
-        chat = update.effective_chat
-        user = member
 
-        # 1. Raid check
-        if await raid.check_join(update, context, user):
+        # 1. Raid check (pehle)
+        if await raid.check_join(update, context, member):
             return
 
-        # 2. Captcha (math/button/image — mode ke hisaab se)
-        await captcha.start_captcha(update, context, chat.id, user)
-
+        # 2. Captcha — mode ke hisaab se (math=original, button/image=naya)
+        mode = store.get_captcha_mode(chat.id)
+        if mode in ("button", "image"):
+            from handlers import captchaplus
+            await captchaplus._restrict_and_send_captcha(
+                context, chat.id, member.id, member.mention_html()
+            )
+        else:
+            # original math captcha — captcha.py ka apna flow
+            await captcha.on_new_member(update, context)
 
 async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_member = update.my_chat_member
