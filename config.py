@@ -34,11 +34,14 @@ OFFICIAL_CHANNEL_URL = f"https://t.me/{OFFICIAL_CHANNEL_USERNAME}"
 
 # --- XP system ---
 XP_MIN_PER_MESSAGE = int(os.getenv("XP_MIN_PER_MESSAGE", "1"))
-XP_MAX_PER_MESSAGE = int(os.getenv("XP_MAX_PER_MESSAGE", "3"))
+XP_MAX_PER_MESSAGE = int(os.getenv("XP_MAX_PER_MESSAGE", "1"))
 XP_COOLDOWN_SECONDS = int(os.getenv("XP_COOLDOWN_SECONDS", "30"))
 
 # --- Free dictionary API (no key required) ---
 DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
 
 # --- Tag-all ---
-TAGALL_CHUNK_SIZE = int(os.getenv("TAGALL_CHUNK_SIZE", "5"))  # mentions per message
+TAGALL_CHUNK_SIZE = int(os.getenv("TAGALL_CHUNK_SIZE", "5")) 
+
+# --- XP leaderboard auto-post ---
+LEADERBOARD_INTERVAL_MINUTES = int(os.getenv("LEADERBOARD_INTERVAL_MINUTES", "60"))
