@@ -225,6 +225,11 @@ async def on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.increment_command_count(update.effective_chat.id)
 
 
+async def on_error(update, context):
+    """Global error handler — saare unhandled errors Errors panel me jayenge."""
+    logger.error("Update me error aaya: %s", context.error, exc_info=context.error)
+
+
 async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Full passive pipeline — har normal group text message pe."""
     user = update.effective_user
@@ -276,7 +281,7 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await notes.check_note_trigger(update, context)
 
     # Auto-responses
-    await autoresponses.check_response(update, context)
+    await autoresponses.check_auto_response(update, context)
 
     # XP system
     db.add_xp(chat.id, user.id, random.randint(XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE),
@@ -299,6 +304,7 @@ def main():
 
     # Basic
     app.add_handler(CommandHandler("start", cmd_start))
+    app.add_error_handler(on_error)
     app.add_handler(CommandHandler("help", cmd_help))
     app.add_handler(CommandHandler("info", info.cmd_info))
     app.add_handler(CommandHandler("stats", stats.cmd_stats))
