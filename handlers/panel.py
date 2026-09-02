@@ -26,6 +26,7 @@ from config import BOT_NAME, BOT_CREDIT, OWNER_IDS, OFFICIAL_CHANNEL_URL
 GROUPS_PER_PAGE = 8
 LOG_LINES_SHOWN = 30
 LOG_BUFFER_SIZE = 300
+MAX_MESSAGE_CHARS = 3500 
 
 # key -> (label, emoji, getter, setter)
 TOGGLES = {
@@ -300,14 +301,28 @@ async def leave_group(update, context, chat_id: int):
     await show_owner_groups(update, context, page=0)
 
 
+
+
 def _format_log_block(lines, empty_msg: str) -> str:
-    shown = lines[-LOG_LINES_SHOWN:]
-    if not shown:
+    """Last N log lines, but never exceed Telegram's message limit."""
+    if not lines:
         return f"<i>{empty_msg}</i>"
-    return "<code>" + "\n".join(html.escape(l) for l in shown) + "</code>"
+    result_lines = []
+    total = 0
+    for line in reversed(lines):  # nayi lines pehle uthao
+        size = len(html.escape(line)) + 1
+        if total + size > MAX_MESSAGE_CHARS:
+            break
+        result_lines.append(line)
+        total += size
+    if not result_lines:
+        result_lines = [html.escape(lines[-1])[:MAX_MESSAGE_CHARS - 20] + " …"]
+    result_lines.reverse()
+    return "<code>" + "\n".join(result_lines) + "</code>"
 
 
 async def show_owner_logs(update, context):
+  await query.answer()
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -328,10 +343,10 @@ async def show_owner_logs(update, context):
             [InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")],
         ]
     )
-    await _safe_edit(query, text, kb)
-
+    await _edit_or_alert(query, text, kb)
 
 async def show_owner_errors(update, context):
+  await query.answer()
     query = update.callback_query
     if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
@@ -353,7 +368,7 @@ async def show_owner_errors(update, context):
             [InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")],
         ]
     )
-    await _safe_edit(query, text, kb)
+    await _edit_or_alert(query, text, kb)
 
 
 async def clear_owner_logs(update, context):
@@ -424,6 +439,24 @@ async def handle_broadcast_message(update: Update, context: ContextTypes.DEFAULT
         f"📢 Broadcast bhej diya.\n✅ Sent: {sent}\n❌ Failed: {failed}"
     )
     return True
+  
+
+async def _edit_or_alert(query, text, kb):
+    """Edit karo; agar content same hai to chup raho, warna user ko error dikhao.
+    Ab kabhi bhi button 'dead' nahi lagega — hamesha kuch response milega."""
+    try:
+        await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
+    except BadRequest as e:
+        if "not modified" not in str(e).lower():
+            try:
+                await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
+            except Exception:
+                pass
+    except Exception as e:
+        try:
+            await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
+        except Exception:
+            pass
 
 
 # ---------------- Callback router ----------------
