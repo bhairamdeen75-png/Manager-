@@ -64,6 +64,7 @@ from handlers import (
     gban,
     antiforward,
     blocklist,
+    security,
 )
 
 logging.basicConfig(
@@ -130,6 +131,8 @@ HELP_PAGES = {
         "🛡️ /setraidlimits &lt;joins&gt; &lt;seconds&gt; &lt;lock_min&gt;\n"
         "🛡️ /setcaptchamode math|button|image\n"
         "🛡️ /approve /unapprove /approved\n"
+        "🛡️ /checkperms /securitystatus /quarantine\n"
+        "🌐 /allowdomain /alloweddomains /removedomain\n"
         "✏️ (anti-edit spam automatic hai)\n"
         "📺 (anti-channel-spam automatic hai)\n"
         "🚫 (global blocklist automatic hai)\n\n"
@@ -391,6 +394,12 @@ def main():
     app.add_handler(CommandHandler("ungban", gban.cmd_ungban))
     app.add_handler(CommandHandler("gbans", gban.cmd_gbans))
     app.add_handler(CommandHandler("antiforward", antiforward.cmd_antiforward))
+    app.add_handler(CommandHandler("checkperms", security.cmd_checkperms))
+    app.add_handler(CommandHandler("allowdomain", security.cmd_allowdomain))
+    app.add_handler(CommandHandler("removedomain", security.cmd_removedomain))
+    app.add_handler(CommandHandler("alloweddomains", security.cmd_alloweddomains))
+    app.add_handler(CommandHandler("securitystatus", security.cmd_securitystatus))
+    app.add_handler(CommandHandler("quarantine", security.cmd_quarantine))
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
@@ -400,6 +409,35 @@ def main():
     app.add_handler(ChatJoinRequestHandler(invites.on_join_request))
 
     # ===== NAYE PASSIVE HANDLERS (alag groups — ek doosre ko block na karein) =====
+    # Security+: media spam + night hardening + quarantine (photo/gif/video/sticker/voice)
+    app.add_handler(MessageHandler(
+        (~filters.TEXT & ~filters.COMMAND) & filters.ChatType.GROUPS,
+        security.on_media
+    ), group=3)
+
+    # Security+: malicious files
+    app.add_handler(MessageHandler(
+        filters.Document.ALL & filters.ChatType.GROUPS,
+        security.on_document
+    ), group=3)
+
+    # Security+: URL whitelist (text messages)
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND,
+        security.check_url_whitelist
+    ), group=3)
+
+    # Security+: naye members (bot-detection, sus name, join pattern, quarantine tracking)
+    app.add_handler(MessageHandler(
+        filters.StatusUpdate.NEW_CHAT_MEMBERS,
+        security.on_new_member
+    ), group=2)
+
+    # Security+: demotion alert
+    app.add_handler(ChatMemberHandler(
+        security.on_my_membership, ChatMemberHandler.MY_CHAT_MEMBER
+    ), group=3)
+    
     # Channel-spam: auto-forwarded channel posts delete + mute
     app.add_handler(MessageHandler(
         filters.ChatType.GROUPS & ~filters.COMMAND,
