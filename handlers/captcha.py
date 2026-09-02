@@ -133,16 +133,13 @@ async def on_captcha_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 ),
             )
         except Exception:
-               logger.warning("Restrict failed for %s — bot ko 'Ban users' permission chahiye!", chat_id)
-    
-        
+            logger.warning("Restrict failed for %s — bot ko 'Ban users' permission chahiye!", chat_id)
 
-# on_captcha_answer ke andar:
-welcome_text = db.get_welcome(chat_id)
-if welcome_text:
-    welcome_text = format_welcome_leave(welcome_text, query.from_user, query.message.chat)
-else:
-    welcome_text = "🎉 Verify ho gaya! Group rules follow karo aur enjoy karo."
+        welcome_text = db.get_welcome(chat_id)
+        if welcome_text:
+            welcome_text = format_welcome_leave(welcome_text, query.from_user, query.message.chat)
+        else:
+            welcome_text = "🎉 Verify ho gaya! Group rules follow karo aur enjoy karo."
         await query.edit_message_text(f"✅ Verification successful!\n\n{welcome_text}")
         await query.answer("Verified!")
     else:
