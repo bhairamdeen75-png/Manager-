@@ -126,28 +126,36 @@ async def cmd_checkperms(update: Update, context: ContextTypes.DEFAULT_TYPE):
         me = await context.bot.get_chat_member(chat.id, context.bot.id)
         if me.status == "member":
             await update.message.reply_text(
-                "❌ Main admin bhi nahi hoon! 🥲\n"
-                + _funny("perms_missing")
+                "❌ Main admin bhi nahi hoon! 🥲\n" + _funny("perms_missing")
             )
             return
-        p = me.privileges
+        if me.status != "administrator":
+            await update.message.reply_text("🤔 Status ajeeb hai: " + me.status)
+            return
+
+        # PTB v21 me permissions seedhe ChatMemberAdministrator pe hoti hain
         perms = {
-            "Delete messages": p.can_delete_messages,
-            "Ban/Mute users": p.can_restrict_members,
-            "Pin messages": p.can_pin_messages,
-            "Invite via link": p.can_invite_users,
+            "Delete messages": me.can_delete_messages,
+            "Ban/Mute users": me.can_restrict_members,
+            "Pin messages": me.can_pin_messages,
+            "Invite via link": me.can_invite_users,
         }
         lines = [f"{'✅' if v else '❌'} {k}" for k, v in perms.items()]
         missing = [k for k, v in perms.items() if not v]
         text = "🔐 <b>Meri powers ka audit:</b>\n" + "\n".join(lines)
         if missing:
-            text += "\n\n⚠️ Ye missing hain boss — inke bina main half talwar hoon:\n<b>" + ", ".join(missing) + "</b>\n\n" + _funny("perms_missing")
+            text += (
+                "\n\n⚠️ Ye missing hain boss — inke bina main half talwar hoon:\n<b>"
+                + ", ".join(missing)
+                + "</b>\n\n" + _funny("perms_missing")
+            )
         else:
             text += "\n\n" + _funny("perms_ok")
         await update.message.reply_text(text, parse_mode=ParseMode.HTML)
     except Exception as e:
+        logger.exception("checkperms fail")
         await update.message.reply_text(f"❌ Audit fail: {e}")
-
+        
 # ================= 2. Suspicious username filter =================
 
 _SUSPICIOUS_PATTERNS = re.compile(
