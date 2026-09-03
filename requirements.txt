@@ -6,3 +6,4 @@ Pillow
 deep-translator
 matplotlib
 APScheduler
+yt-dlp
