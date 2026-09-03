@@ -225,7 +225,7 @@ async def cmd_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         store.init_pet(chat_id, name)
         await update.message.reply_text(
             f"🐣 Naya pet aaya gaya! Naam: **{name}**\n"
-            f"Khilao: /feed • Kelao: /play • Status: /pet\n\n"
+            f"Khilao: /feed • Kelao: /petplay • Status: /pet\n\n"
             f"Dhyan rakho — bhooka rahega toh bhaag jayega! 😱"
         )
         return
