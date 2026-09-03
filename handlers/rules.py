@@ -35,7 +35,7 @@ async def cmd_setrules(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("Use karo: /setrules <rules text>")
         return
-    text = " ".join(context.args)
+    text = update.effective_message.text.partition(" ")[2].strip()
     db.set_rules(update.effective_chat.id, text)
     await update.message.reply_text("✅ Group rules set ho gaye.")
 
