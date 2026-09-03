@@ -68,6 +68,7 @@ from handlers import (
     settings_panel,
     extra2,
     smartreply,
+    music,
 )
 
 logging.basicConfig(
@@ -103,6 +104,7 @@ HELP_PAGES = {
         "📝 #name — note kholo, kabhi bhi\n"
         "<i>💡 Hint: note name chhota rakho, yaad rakhna easy hota hai</i>\n\n"
         "🎯 <b>Fun & Info:</b>\n"
+        "🎵 /play - Music sunnne ke liye vc chalao phir sunte hai \n"
         "📊 /rank — apna XP dekho, competition toh banta hai 💪\n"
         "🏆 /leaderboard — top users, jalan bhi sath me free\n"
         "🎲 /poll — poll banao, group ki raay jaano\n"
@@ -462,6 +464,14 @@ def main():
     app.add_handler(CommandHandler("unsmart", smartreply.cmd_unsmart))
     app.add_handler(CommandHandler("smartlist", smartreply.cmd_smartlist))
     app.add_handler(CommandHandler("pro", smartreply.cmd_pro))
+    app.add_handler(CommandHandler("play", music.cmd_play))
+    app.add_handler(CommandHandler("pause", music.cmd_pause))
+    app.add_handler(CommandHandler("resume", music.cmd_resume))
+    app.add_handler(CommandHandler("next", music.cmd_next))
+    app.add_handler(CommandHandler("previous", music.cmd_previous))
+    app.add_handler(CommandHandler("np", music.cmd_np))
+    app.add_handler(CommandHandler("queue", music.cmd_queue))
+    app.add_handler(CallbackQueryHandler(music.on_music_button, pattern=r"^mus:"))
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
