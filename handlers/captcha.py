@@ -140,7 +140,19 @@ async def on_captcha_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
             welcome_text = format_welcome_leave(welcome_text, query.from_user, query.message.chat)
         else:
             welcome_text = "🎉 Verify ho gaya! Group rules follow karo aur enjoy karo."
-        await query.edit_message_text(f"✅ Verification successful!\n\n{welcome_text}")
+        try:
+            await query.edit_message_text(
+                f"✅ Verification successful!\n\n{welcome_text}",
+                parse_mode="HTML",
+            )
+        except Exception:
+            # Fancy naam/characters se HTML fail hua → plain text me dikhao
+            try:
+                await query.edit_message_text(
+                    f"✅ Verification successful!\n\n{welcome_text}"
+                )
+            except Exception:
+                pass
         await query.answer("Verified!")
     else:
         await query.answer("❌ Galat jawab, dobara try karo.", show_alert=True)
