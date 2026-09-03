@@ -83,16 +83,29 @@ async def _captcha_timeout(context: ContextTypes.DEFAULT_TYPE):
         return  # already solved
 
     del _pending[key]
+    # Kick ki jagah 30 minute mute — user group me rahega, bas likh nahi payega
+    from datetime import datetime, timedelta, timezone
     try:
-        await context.bot.ban_chat_member(chat_id, user_id)
-        await context.bot.unban_chat_member(chat_id, user_id)  # kick, not permanent ban
+        await context.bot.restrict_chat_member(
+            chat_id,
+            user_id,
+            permissions=ChatPermissions(can_send_messages=False),
+            until_date=datetime.now(timezone.utc) + timedelta(minutes=30),
+        )
+        mute_done = True
     except Exception:
-        pass
+        mute_done = False
     try:
         await context.bot.edit_message_text(
             chat_id=chat_id,
             message_id=message_id,
-            text="⏰ Captcha timeout — user ko kick kar diya gaya.",
+            text=(
+                "⏰ Captcha timeout — user ko <b>30 minute ke liye mute</b> kar diya gaya. "
+                "Baad me khud group me likh sakta hai, phir se verify karwa sakte hain. 🕒"
+                if mute_done else
+                "⏰ Captcha timeout — mute nahi ho paya (bot ko 'Restrict members' permission chahiye)."
+            ),
+            parse_mode="HTML",
         )
     except Exception:
         pass
