@@ -193,3 +193,75 @@ def bump_activity(chat_id, user_id):
 def get_activity(chat_id, days=7):
     since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
     return list(activity.find({"chat_id": chat_id, "day": {"$gte": since}}))
+
+
+# ---------- Counting game ----------
+counts = _db["counting"]
+
+def get_count_target(chat_id):
+    doc = counts.find_one({"chat_id": chat_id})
+    return doc.get("target", 0) if doc else 0
+
+def set_count_target(chat_id, val):
+    counts.update_one({"chat_id": chat_id}, {"$set": {"target": val}}, upsert=True)
+
+def get_count_last_user(chat_id):
+    doc = counts.find_one({"chat_id": chat_id})
+    return doc.get("last_user") if doc else None
+
+def set_count_last_user(chat_id, user_id):
+    counts.update_one({"chat_id": chat_id}, {"$set": {"last_user": user_id}}, upsert=True)
+
+def get_count_record(chat_id):
+    doc = counts.find_one({"chat_id": chat_id})
+    return doc.get("record", 0) if doc else 0
+
+def set_count_record(chat_id, val):
+    counts.update_one({"chat_id": chat_id}, {"$set": {"record": val}}, upsert=True)
+
+
+# ---------- Reputation ----------
+reps = _db["reputation"]
+
+def get_rep(chat_id, user_id):
+    doc = reps.find_one({"chat_id": chat_id, "user_id": user_id})
+    return doc.get("rep", 0) if doc else 0
+
+def change_rep(chat_id, user_id, delta):
+    reps.update_one({"chat_id": chat_id, "user_id": user_id},
+                    {"$inc": {"rep": delta}}, upsert=True)
+    return get_rep(chat_id, user_id)
+
+
+# ---------- Virtual pet ----------
+pets = _db["pets"]
+
+def get_pet(chat_id):
+    return pets.find_one({"chat_id": chat_id})
+
+def init_pet(chat_id, name):
+    pets.update_one({"chat_id": chat_id},
+                    {"$set": {"name": name, "hunger": 80, "born": __import__("datetime").datetime.now()}},
+                    upsert=True)
+
+def update_pet_hunger(chat_id, hunger):
+    pets.update_one({"chat_id": chat_id}, {"$set": {"hunger": hunger}}, upsert=True)
+
+
+# ---------- Confessions ----------
+confessions = _db["confessions"]
+
+def set_confession_group(user_id, group_id):
+    confessions.update_one({"user_id": user_id}, {"$set": {"group_id": group_id}}, upsert=True)
+
+def get_confession_group(user_id):
+    doc = confessions.find_one({"user_id": user_id})
+    return doc.get("group_id") if doc else None
+
+def next_confession_num(group_id):
+    doc = confessions.find_one({"group_id": group_id, "num": {"$exists": True}})
+    current = doc.get("num", 0) if doc else 0
+    confessions.update_one({"group_id": group_id},
+                           {"$set": {"num": current + 1}}, upsert=True)
+    return current + 1
+    
