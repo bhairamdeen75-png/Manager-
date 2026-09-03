@@ -16,6 +16,7 @@ import html
 import logging
 from collections import deque
 
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
 from telegram.ext import ContextTypes
@@ -110,7 +111,7 @@ def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
         [InlineKeyboardButton("👑 Owner Panel", callback_data="pnl:owner")],
         [
           InlineKeyboardButton("📢 Official Channel", url=OFFICIAL_CHANNEL_URL),
-          Button.url("How to setup", "https://teamvb-manager-bot.netlify.app/"),
+          InlineKeyboardButton("Help Center", url="https://teamvb-manager-bot.netlify.app/"),
         ],
     ])
 
