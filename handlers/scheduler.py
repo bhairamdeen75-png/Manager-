@@ -41,7 +41,9 @@ async def cmd_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not delta:
         await update.message.reply_text("Time format: 30s, 10m, 2h, 1d")
         return
-    text = " ".join(context.args[1:])
+    # Raw text lo, pehla token (time) chhod kar — newlines preserve
+    raw = update.effective_message.text.partition(" ")[2].strip()
+    text = raw.partition(" ")[2].strip()   # pehla word = duration, baaki = message
     run_at = datetime.now(timezone.utc) + delta
     sched_id = str(store.add_schedule(update.effective_chat.id, run_at, text,
                                       update.effective_user.id))
