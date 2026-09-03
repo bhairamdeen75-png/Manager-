@@ -70,6 +70,7 @@ from handlers import (
     smartreply,
     music,
     fun,
+    autoreact,
 )
 
 logging.basicConfig(
@@ -175,6 +176,7 @@ HELP_PAGES = {
         "🛡️ /antiforward — channel forward auto-delete 📺❌\n"
         "🛡️/pro - Sari important security ko ek sath open karta hu ek command me\n"
         "🌐 /allowdomain /alloweddomains /removedomain — link whitelist\n"
+        "🤖 /autoreact on/off — bot har message pe random reaction lagayega (admin)\n"
         "<i>✏️ Anti-edit spam — automatic hai, tum tension mat lo</i>\n"
         "<i>📺 Anti-channel-spam — automatic hai, bot dekh raha hai</i>\n"
         "<i>🚫 Global blocklist — automatic hai, pahle hi block</i>\n\n"
@@ -306,6 +308,9 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Activity tracking (/activity chart ke liye)
     store.bump_activity(chat.id, user.id)
+
+    # Autoreact — bot random reaction lagata hai (consume nahi karta)
+    await autoreact.on_autoreact(update, context)
 
     # Image captcha answer check
     if await captchaplus.on_image_captcha_text(update, context):
@@ -501,8 +506,9 @@ def main():
     app.add_handler(CommandHandler("pet", fun.cmd_pet))
     app.add_handler(CommandHandler("feed", fun.cmd_feed))
     app.add_handler(CommandHandler("feed", fun.cmd_feed))
-    app.add_handler(CommandHandler("play", fun.cmd_play))
+    app.add_handler(CommandHandler("petplay", fun.cmd_play))
     app.add_handler(CommandHandler("confess", fun.cmd_confess))
+    app.add_handler(CommandHandler("autoreact", autoreact.cmd_autoreact))
 
 
     # ===== NAYE CALLBACKS =====
