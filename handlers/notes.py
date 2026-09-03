@@ -20,7 +20,9 @@ async def cmd_save(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if msg.reply_to_message and len(context.args) == 1:
         content = msg.reply_to_message.text or msg.reply_to_message.caption or ""
     else:
-        content = " ".join(context.args[1:])
+        # Raw text lo, pehla token (name) chhod kar — newlines preserve
+        raw = update.effective_message.text.partition(" ")[2].strip()
+        content = raw.partition(" ")[2].strip()
     if not content:
         await update.message.reply_text("Note ka content nahi mila.")
         return
