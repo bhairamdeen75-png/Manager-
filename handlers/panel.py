@@ -108,7 +108,10 @@ def start_keyboard(bot_username: str) -> InlineKeyboardMarkup:
             InlineKeyboardButton("⚙️ Group Settings", callback_data="setpnl:start"),
         ],
         [InlineKeyboardButton("👑 Owner Panel", callback_data="pnl:owner")],
-        [InlineKeyboardButton("📢 Official Channel", url=OFFICIAL_CHANNEL_URL)],
+        [
+          InlineKeyboardButton("📢 Official Channel", url=OFFICIAL_CHANNEL_URL),
+          InlineKeyboardButton("Help Center", url=https://teamvb-userbot.netlify.app/),
+        ],
     ])
 
 
