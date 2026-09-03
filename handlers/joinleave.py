@@ -30,15 +30,18 @@ async def on_join_leave_service_message(update: Update, context: ContextTypes.DE
     if msg.left_chat_member:
         leaver = msg.left_chat_member
         db.remove_seen_user(chat.id, leaver.id)
-
-        # Custom leave message (bots skip karo)
+# Custom leave message (bots skip karo)
         leave_text = db.get_leave_message(chat_id=chat.id)
         if leave_text and not leaver.is_bot:
             try:
                 formatted = format_welcome_leave(leave_text, leaver, chat)
                 await context.bot.send_message(chat.id, formatted, parse_mode="HTML")
             except Exception:
-                pass
+                # HTML fail hua (fancy characters) → plain text me bhej do
+                try:
+                    await context.bot.send_message(chat.id, formatted)
+                except Exception:
+                    pass
 
     if not db.get_autodelete_joinleave(chat.id):
         return
