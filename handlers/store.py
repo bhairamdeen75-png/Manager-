@@ -265,3 +265,13 @@ def next_confession_num(group_id):
                            {"$set": {"num": current + 1}}, upsert=True)
     return current + 1
     
+# ---------- Autoreact ----------
+def set_autoreact(chat_id, enabled: bool):
+    settings.update_one(
+        {"chat_id": chat_id}, {"$set": {"autoreact": enabled}}, upsert=True
+    )
+
+def get_autoreact(chat_id) -> bool:
+    doc = settings.find_one({"chat_id": chat_id})
+    return bool(doc.get("autoreact", False)) if doc else False
+
