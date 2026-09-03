@@ -483,6 +483,20 @@ def get_antiforward(chat_id: int) -> bool:
     doc = settings_col.find_one({"chat_id": chat_id})
     return doc.get("antiforward", False) if doc else False
 
+    # ---------------- Auto-delete join/leave with delay ----------------
+
+def set_autodelete_delay(chat_id: int, seconds: int):
+    settings_col.update_one(
+        {"chat_id": chat_id},
+        {"$set": {"autodelete_delay": seconds}},
+        upsert=True,
+    )
+
+
+def get_autodelete_delay(chat_id: int) -> int:
+    doc = settings_col.find_one({"chat_id": chat_id})
+    return doc.get("autodelete_delay", 0) if doc else 0  # 0 = turant
+
 # ---------------- Guess game (restart-proof) ----------------
 
 def set_guess_game(chat_id: int, number: int):
