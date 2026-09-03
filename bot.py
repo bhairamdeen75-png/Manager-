@@ -69,6 +69,7 @@ from handlers import (
     extra2,
     smartreply,
     music,
+    fun,
 )
 
 logging.basicConfig(
@@ -114,7 +115,16 @@ HELP_PAGES = {
         "🌤️ /weather &lt;city&gt; — mausam dekho\n"
         "📚 /wiki &lt;topic&gt; — Wikipedia se gyan\n"
         "🧮 /calc &lt;expr&gt; — calculator\n"
-        "🎮 /guess — guessing game khelo"
+        "🎮 /guess — guessing game khelo\n"
+        "🎭 /roast — reply karke funny roast\n"
+        "🌟 /compliment — reply karke tareef\n"
+        "🔮 /fortune — mazakiya bhavishyavani\n"
+        "🚨 /ticket — funny police ticket\n"
+        "🔢 /count — group counting game\n"
+        "⭐ /rep + / /rep - — reputation\n"
+        "🎨 /emojistory — emoji story contest\n"
+        "🐾 /pet /feed /play — group pet\n"
+        "🤫 /confess — anonymous confession (DM me)\n"
     ),
     "medium": (
         "🟡 <b>MEDIUM COMMANDS</b> <i>(admin level-up)</i>\n"
@@ -262,6 +272,10 @@ async def on_private_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner Panel broadcast capture."""
     await panel.handle_broadcast_message(update, context)
 
+    if await fun.on_confession_text(update, context):
+        return
+    await panel.handle_broadcast_message(update, context)
+
 
 async def on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Passive counter for /stats."""
@@ -280,6 +294,9 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     msg = update.effective_message
     if not user or not chat or not msg or user.is_bot:
+        return
+
+    if await fun.on_count_message(update, context):
         return
 
     # Group registry + seen users (/tagall aur panel ke liye)
@@ -472,6 +489,21 @@ def main():
     app.add_handler(CommandHandler("np", music.cmd_np))
     app.add_handler(CommandHandler("queue", music.cmd_queue))
     app.add_handler(CallbackQueryHandler(music.on_music_button, pattern=r"^mus:"))
+    app.add_handler(CommandHandler("roast", fun.cmd_roast))
+    app.add_handler(CommandHandler("compliment", fun.cmd_compliment))
+    app.add_handler(CommandHandler("fortune", fun.cmd_fortune))
+    app.add_handler(CommandHandler("ticket", fun.cmd_ticket))
+    app.add_handler(CommandHandler("count", fun.cmd_count))
+    app.add_handler(CommandHandler("countstop", fun.cmd_countstop))
+    app.add_handler(CommandHandler("rep", fun.cmd_rep))
+    app.add_handler(CommandHandler("emojistory", fun.cmd_emojistory))
+    app.add_handler(CommandHandler("emojistorywin", fun.cmd_emojistorywin))
+    app.add_handler(CommandHandler("pet", fun.cmd_pet))
+    app.add_handler(CommandHandler("feed", fun.cmd_feed))
+    app.add_handler(CommandHandler("feed", fun.cmd_feed))
+    app.add_handler(CommandHandler("play", fun.cmd_play))
+    app.add_handler(CommandHandler("confess", fun.cmd_confess))
+
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
