@@ -67,6 +67,7 @@ from handlers import (
     security,
     settings_panel,
     extra2,
+    smartreply,
 )
 
 logging.basicConfig(
@@ -137,7 +138,8 @@ HELP_PAGES = {
         "⚙️ /setrules — niyam likho, /rules se padhwayo\n"
         "⚙️ /setlogchannel — log channel set karo, CCTV on 📹\n"
         "⚙️ /nightmode — raat ko group so jayega 🌙\n"
-        "⚙️ /setnighttime — sone ka time set karo 😴\n\n"
+        "⚙️ /setnighttime — sone ka time set karo 😴\n"
+        "⚙️/smart - smart and auto reply ke liye \n\n"
         "🤖 <b>Automation:</b>\n"
         "🌐 /shorturl &lt;link&gt; — lamba link chhota karo\n"
         "📱 /qr &lt;text&gt; — QR code banao\n"
@@ -159,6 +161,7 @@ HELP_PAGES = {
         "🛡️ /securitystatus — security ka full report, James Bond style 🕵️\n"
         "🛡️ /quarantine — shak wale user ko隔离 karo 🏥\n"
         "🛡️ /antiforward — channel forward auto-delete 📺❌\n"
+        "🛡️/pro - Sari important security ko ek sath open karta hu ek command me\n"
         "🌐 /allowdomain /alloweddomains /removedomain — link whitelist\n"
         "<i>✏️ Anti-edit spam — automatic hai, tum tension mat lo</i>\n"
         "<i>📺 Anti-channel-spam — automatic hai, bot dekh raha hai</i>\n"
@@ -197,6 +200,7 @@ async def cmd_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🟢 Basic", callback_data="help:basic"),
          InlineKeyboardButton("🟡 Medium", callback_data="help:medium")],
         [InlineKeyboardButton("🔴 Advanced", callback_data="help:advanced")],
+        [InlineKeyboardButton("🔙 Close", callback_data="help:close")],
     ])
     await update.message.reply_text(
         "🗂️ <b>Command Help</b> — layer choose karo:",
@@ -213,6 +217,7 @@ async def on_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton("🟢 Basic", callback_data="help:basic"),
          InlineKeyboardButton("🟡 Medium", callback_data="help:medium")],
         [InlineKeyboardButton("🔴 Advanced", callback_data="help:advanced")],
+        [InlineKeyboardButton("🔙 Close", callback_data="help:close")],
     ])
     await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
 
@@ -453,6 +458,10 @@ def main():
     app.add_handler(CommandHandler("time", extra2.cmd_time))
     app.add_handler(CommandHandler("shorturl", extra2.cmd_shorturl))
     app.add_handler(CommandHandler("guess", extra2.cmd_guess))
+    app.add_handler(CommandHandler("smart", smartreply.cmd_smart))
+    app.add_handler(CommandHandler("unsmart", smartreply.cmd_unsmart))
+    app.add_handler(CommandHandler("smartlist", smartreply.cmd_smartlist))
+    app.add_handler(CommandHandler("pro", smartreply.cmd_pro))
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
@@ -519,6 +528,12 @@ def main():
     app.add_handler(MessageHandler(
         filters.COMMAND & filters.ChatType.GROUPS, on_command
     ), group=5)
+
+    # Smart auto-reply: har group text message pe keyword check
+    app.add_handler(
+        MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, smartreply.check_smart_reply),
+        group=6,
+    )
 
     # New member pipeline: raid check -> captcha
     app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, on_new_chat_members))
