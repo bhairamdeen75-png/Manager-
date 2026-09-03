@@ -27,7 +27,8 @@ async def cmd_setwelcome(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
         )
         return
-    text = " ".join(context.args)
+    # Raw text lo — newlines preserve rahenge (context.args newline kha jata hai)
+    text = update.effective_message.text.partition(" ")[2].strip()
     db.set_welcome(update.effective_chat.id, text)
     # Preview dikhao — apna hi placeholder fill karke
     preview = format_welcome_leave(text, update.effective_user, update.effective_chat)
