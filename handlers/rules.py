@@ -83,13 +83,20 @@ async def on_new_member_rules_gate(update: Update, context: ContextTypes.DEFAULT
             pass
 
         button = InlineKeyboardButton("✅ I Accept the Rules", callback_data=f"rules:{chat.id}:{member.id}")
-        await context.bot.send_message(
-            chat.id,
-            f"📜 {member.mention_html()}, group me likhne se pehle rules accept karo:\n\n{rules_text}",
-            parse_mode="HTML",
-            reply_markup=InlineKeyboardMarkup([[button]]),
-        )
-
+        try:
+            await context.bot.send_message(
+                chat.id,
+                f"📜 {member.mention_html()}, group me likhne se pehle rules accept karo:\n\n{rules_text}",
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup([[button]]),
+            )
+        except Exception:
+            # HTML parse fail (fancy characters) → plain fallback (button ke saath)
+            await context.bot.send_message(
+                chat.id,
+                f"📜 {member.first_name}, group me likhne se pehle rules accept karo:\n\n{rules_text}",
+                reply_markup=InlineKeyboardMarkup([[button]]),
+            )
 
 async def on_rules_accept(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
