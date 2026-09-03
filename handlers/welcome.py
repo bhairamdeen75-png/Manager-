@@ -51,7 +51,8 @@ async def cmd_setleave(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
         )
         return
-    text = " ".join(context.args)
+    # Raw text lo — newlines preserve rahenge (context.args newline kha jata hai)
+    text = update.effective_message.text.partition(" ")[2].strip()
     if text.lower() in ("off", "disable", "none"):
         db.set_leave_message(update.effective_chat.id, "")
         await update.message.reply_text("🧹 Leave message OFF kar diya.")
