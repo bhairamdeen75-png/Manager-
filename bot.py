@@ -355,10 +355,16 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
-    if not BOT_TOKEN:
-        raise SystemExit("BOT_TOKEN environment variable set nahi hai!")
+    # Render deploy overlap guard — purana instance khud band hone ka time do
+    try:
+        import os, time
+        grace = int(os.environ.get("RENDER_GRACE_SECONDS", "8"))
+        if os.environ.get("RENDER_INSTANCE_ID") or os.environ.get("RENDER_SERVICE_ID"):
+            logger.info("Render detected — %ss grace (purana instance band ho raha hai)", grace)
+            time.sleep(grace)
+    except Exception:
+        pass
 
-    db.init_db()
     keep_alive()
 
     app = Application.builder().token(BOT_TOKEN).build()
