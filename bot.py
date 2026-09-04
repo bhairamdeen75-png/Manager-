@@ -609,6 +609,12 @@ def main():
         MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, on_group_message)
     )
 
+    # Autoreact — har group text message pe reaction lagao (agar /autoreact on ho)
+    app.add_handler(
+        MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, autoreact.on_autoreact),
+        group=7,
+    )
+
     # Restart-proof schedules: night mode + scheduled messages
     schedule_startup_jobs(app)
 
