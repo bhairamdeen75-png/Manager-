@@ -19,46 +19,24 @@ from handlers.utils import is_admin
 
 logger = logging.getLogger(__name__)
 
-# Reaction emoji pool — sab Telegram standard reactions hain
 REACTION_POOL = [
-    # Positivity, Love & Celebration
     "👍", "❤️", "🔥", "🥰", "👏", "😁", "🤩", "🫡", "🫶", "🙏",
     "😍", "😂", "💯", "❤️‍🔥", "🤣", "🥳", "🤝", "🤗", "😎", "✨",
     "💖", "💗", "💓", "💞", "💕", "💌", "💘", "💝", "🌟", "⭐",
     "🎉", "🎊", "🚀", "🎯", "👑", "💎", "🎁", "🎈", "🏆", "🥇",
-
-    # Expressions, Surprises & Reactions
     "🤔", "🤯", "😱", "👀", "⚡", "💭", "🫠", "🥹", "💀", "😭",
     "😳", "😮", "😲", "😯", "😬", "🤐", "😐", "😑", "😶", "😶‍🌫️",
     "🙈", "🙉", "🙊", "🙋", "🤷", "🤦", "🤷‍♂️", "🤦‍♂️", "🙋‍♂️", "🔮",
-
-    # Playful, Dark & Negative
     "🤬", "😢", "🥱", "🤡", "👻", "🎃", "😴", "🤮", "🤢", "😷",
     "🤒", "🤕", "😈", "👿", "👺", "👹", "☠️", "💩", "💔", "🧿",
-
-    # Gestures & Hands
     "✍️", "💋", "🤖", "✌️", "🤞", "🤟", "🤘", "🤙", "👈", "👉",
     "👆", "👇", "☝️", "👎", "✊", "👊", "🤛", "🤜", "🖐️", "✋",
-
-    # Hearts & Miscellaneous
     "🖤", "💜", "💙", "💚", "💛", "🧡", "🤍", "🤎", "🩷", "🩵",
     "🩶", "🍉", "🍿", "☕", "🍕", "🍔", "🍻", "💡", "📌", "⚠️"
 ]
 
 
-# Emoji + message combo — kabhi kabhi reaction ke saath mazakiya comment bhi
-FUNNY_COMMENTS = [
-    "Ye message toh react bhi deserve karta hai 😎",
-    "Reaction de diya, ab khush? 😂",
-    "Bot bhi fan ho gaya is message ka 🔥",
-    "Random reaction aa gaya — kal ki baat kal dekhenge 🎲",
-    "Isko toh award milna chahiye 🏆",
-    "React kar diya bhai, aur kya chahiye 😄",
-]
-
-
 async def cmd_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Turn autoreact on/off — admin only."""
     chat = update.effective_chat
     if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
         await update.message.reply_text("Ye command sirf group me kaam karta hai.")
@@ -89,32 +67,20 @@ async def cmd_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def on_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """
-    on_group_message pipeline se call hota hai.
-    True = message consume hua (autoreact ke baad aage kuch nahi karna).
-    """
+    """on_group_message se directly call hota hai — handler group ka issue nahi."""
     chat = update.effective_chat
     msg = update.effective_message
 
     if chat.type not in (ChatType.GROUP, ChatType.SUPERGROUP):
         return False
-
-    # Bot ke apne messages pe react nahi karte (infinite loop se bachne ke liye)
     if not msg.from_user or msg.from_user.id == context.bot.id:
         return False
-
-    # Service messages (join/leave) pe react nahi karte
     if not msg.text and not msg.caption and not msg.photo and not msg.sticker:
         return False
-
     if not store.get_autoreact(chat.id):
         return False
-
-    # Flood limit se bachne ke liye — 10 me se 1 message skip karte hain
-    if random.random() < 0.10:
+    if random.random() < 0.01:  # flood se bachne ke liye 10% skip
         return False
-
-    # Agar message pe bot ka already reaction hai toh skip
     if msg.reactions and any(
         getattr(r.user, "id", None) == context.bot.id for r in msg.reactions
     ):
@@ -124,20 +90,6 @@ async def on_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bo
     try:
         await msg.set_reaction(emoji)
     except Exception as e:
-        # "Reaction_invalid" ya flood limit — chupchap skip karo, error spam nahi
-        logger.debug(f"Autoreact skip ({chat.id}): {e}")
+        logger.info("Autoreact skip (%s): %s", chat.id, e)
         return False
-
-    # 2% chance — reaction ke saath mazakiya comment bhi
-    if random.random() < 0.02:
-        try:
-            await msg.reply_text(random.choice(FUNNY_COMMENTS))
-        except Exception:
-            pass
-
-    return False  # False return karte hain — pipeline aage chalta rahega
-    # (react karna message consume nahi karta — notes, spam checks sab chalte rahenge)
-
-
-def register(app):
-    app.add_handler(CommandHandler("autoreact", cmd_autoreact), group=5)
+    return False
