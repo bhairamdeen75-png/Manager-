@@ -487,15 +487,13 @@ def get_antiforward(chat_id: int) -> bool:
 
 def set_autodelete_delay(chat_id: int, seconds: int):
     settings_col.update_one(
-        {"chat_id": chat_id},
-        {"$set": {"autodelete_delay": seconds}},
-        upsert=True,
+        {"chat_id": chat_id}, {"$set": {"autodelete_delay": seconds}}, upsert=True,
     )
 
 
 def get_autodelete_delay(chat_id: int) -> int:
     doc = settings_col.find_one({"chat_id": chat_id})
-    return doc.get("autodelete_delay", 0) if doc else 0  # 0 = turant
+    return doc.get("autodelete_delay", 0) if doc else 0
 
 # ---------------- Guess game (restart-proof) ----------------
 
