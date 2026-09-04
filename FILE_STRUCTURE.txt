@@ -1,0 +1,77 @@
+================================================================================
+                    MANAGER BOT - FILE STRUCTURE
+================================================================================
+
+Manager-/
+│
+├── .gitignore
+├── Procfile
+├── README.md
+├── bot.py
+├── config.py
+├── database.py
+├── keep_alive.py
+├── render.yaml
+├── requirements.txt
+├── runtime.txt
+│
+└── handlers/
+    ├── __init__.py
+    ├── activity.py
+    ├── adminplus.py
+    ├── aliases.py
+    ├── antiedit.py
+    ├── antiforward.py
+    ├── antispam.py
+    ├── appeals.py
+    ├── approve.py
+    ├── autopin.py
+    ├── autoreact.py
+    ├── autoresponses.py
+    ├── backup.py
+    ├── blocklist.py
+    ├── captcha.py
+    ├── captchaplus.py
+    ├── channelspam.py
+    ├── content_filter.py
+    ├── dictionary.py
+    ├── extra.py
+    ├── extra2.py
+    ├── filters_handler.py
+    ├── fun.py
+    ├── funmessages.py
+    ├── funtexts.py
+    ├── gban.py
+    ├── info.py
+    ├── invites.py
+    ├── joinleave.py
+    ├── logs.py
+    ├── moderation.py
+    ├── music.py
+    ├── nightmode.py
+    ├── notes.py
+    ├── panel.py
+    ├── polls.py
+    ├── pomodoro.py
+    ├── raid.py
+    ├── reminders.py
+    ├── rules.py
+    ├── scheduler.py
+    ├── security.py
+    ├── settings_panel.py
+    ├── smartreply.py
+    ├── spamscore.py
+    ├── stats.py
+    ├── store.py
+    ├── tagall.py
+    ├── translate.py
+    ├── utils.py
+    ├── welcome.py
+    ├── welcomemedia.py
+    └── xp.py
+
+================================================================================
+Total Files: 50+
+Root Files: 11
+Handler Files: 45+
+================================================================================
