@@ -104,7 +104,7 @@ async def cmd_wiki(update: Update, context: ContextTypes.DEFAULT_TYPE):
             s = await client.get(
                 "https://en.wikipedia.org/w/api.php",
                 params={"action": "query", "list": "search", "srsearch": query,
-                        "format": "json", "srlimit": 1},
+                        "format": "json", "srlimit": 5},
             )
             s.raise_for_status()
             results = s.json().get("query", {}).get("search", [])
@@ -112,29 +112,43 @@ async def cmd_wiki(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await update.message.reply_text("😕 Wikipedia pe kuch nahi mila. Kuch aur try karo!")
                 return
             title = results[0]["title"]
-            r = await client.get(
-                f"https://en.wikipedia.org/api/rest_v1/page/summary/{title.replace(' ', '_')}"
+
+            # extracts API — exchars se length control hoti hai (REST summary
+            # sirf lead paragraph deta tha, isiliye extract chhota reh jaata tha)
+            e = await client.get(
+                "https://en.wikipedia.org/w/api.php",
+                params={
+                    "action": "query", "prop": "extracts|info",
+                    "titles": title, "format": "json",
+                    "explaintext": 1, "exchars": 1800, "inprop": "url",
+                },
             )
-            r.raise_for_status()
-            data = r.json()
-    except Exception as e:
-        logger.warning("Wiki API fail: %s", e)
+            e.raise_for_status()
+            pages = e.json().get("query", {}).get("pages", {})
+            page = next(iter(pages.values()), {})
+    except Exception as ex:
+        logger.warning("Wiki API fail: %s", ex)
         await update.message.reply_text("😅 Wikipedia thoda busy hai, dobara try karo.")
         return
 
-    extract = data.get("extract") or "Koi summary nahi mili."
-    if len(extract) > 1200:
-        extract = extract[:1200] + "…"
-    link = data.get("content_urls", {}).get("desktop", {}).get("page", "")
-    desc = data.get("description", "")
-    text = f"📚 <b>{data.get('title', query)}</b>"
-    if desc:
-        text += f"\n<i>{desc}</i>"
-    text += f"\n\n{extract}"
-    if link:
-        text += f"\n\n🔗 {link}"
-    await update.message.reply_text(text, parse_mode="HTML", disable_web_page_preview=False)
+    extract = (page.get("extract") or "Koi summary nahi mili.").strip()
+    if len(extract) > 1800:
+        extract = extract[:1800].rsplit(".", 1)[0] + "."
 
+    link = page.get("fullurl") or f"https://en.wikipedia.org/wiki/{title.replace(' ', '_')}"
+    text = f"📚 <b>{title}</b>\n\n{extract}\n\n🔗 {link}"
+
+    # Related links — agar top match galat nikla toh user khud sahi page chun sake
+    related = [r["title"] for r in results[1:5] if r["title"] != title]
+    if related:
+        text += "\n\n🔎 <b>Related pages:</b>\n" + "\n".join(
+            f"• https://en.wikipedia.org/wiki/{t.replace(' ', '_')}" for t in related
+        )
+
+    if len(text) > 4000:
+        text = text[:3900] + "…"
+
+    await update.message.reply_text(text, parse_mode="HTML", disable_web_page_preview=False)
 
 # ---------------- /qr — locally generated, styled, high-scan-reliability ----------------
 # Pehle qrserver.com (external API) pe depend karte the — har baar ek extra
@@ -170,21 +184,21 @@ def _qr_cache_get(token: str) -> str | None:
 
 def _make_qr_png(data: str) -> bytes:
     qr = qrcode.QRCode(
-        error_correction=qrcode.constants.ERROR_CORRECT_H,  # 30% redundancy — scuffed/small screens pe bhi scan ho
-        box_size=12,
-        border=4,  # quiet zone — iske bina kai scanner apps QR pehchan nahi paate
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=14,   # 12 se 14 — thoda bada, compression-proof
+        border=4,
     )
     qr.add_data(data)
     qr.make(fit=True)
     img = qr.make_image(
         image_factory=StyledPilImage,
         module_drawer=RoundedModuleDrawer(),
+        eye_drawer=SquareModuleDrawer(),  # finder patterns hamesha sharp square rahein
         color_mask=SolidFillColorMask(front_color=(24, 90, 189), back_color=(255, 255, 255)),
     ).convert("RGB")
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
-
 
 def _qr_share_url(data: str) -> str:
     """Telegram ka native 'share to chat' dialog kholta hai — agar data ek
@@ -219,8 +233,11 @@ async def cmd_qr(update: Update, context: ContextTypes.DEFAULT_TYPE):
         InlineKeyboardButton("⬇️ Download HD", callback_data=f"qrdl:{token}"),
         InlineKeyboardButton("↗️ Share", url=_qr_share_url(data)),
     ]])
-    await update.message.reply_photo(
-        photo=io.BytesIO(png_bytes),
+    # IMPORTANT: reply_document, NOT reply_photo — Telegram photos get
+    # JPEG-compressed, jo blue+rounded QR ko unscannable bana deta tha
+    await update.message.reply_document(
+        document=io.BytesIO(png_bytes),
+        filename="qrcode.png",
         caption=f"📱 <b>QR ready!</b> Scan karke dekho 👇\n<code>{preview}</code>",
         parse_mode="HTML",
         reply_markup=kb,
@@ -304,21 +321,38 @@ async def cmd_calc(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- /time (offline — hamesha chalega) ----------------
 
-_ZONES = {
-    "IST": 5.5, "UTC": 0, "GMT": 0, "PKT": 5.0, "GST": 4.0,
-    "EST": -5.0, "CET": 1.0, "JST": 9.0, "AEST": 10.0, "PST": -8.0,
-}
+# Country-wise zones with flags
+_ZONES = [
+    ("🇮🇳", "India (IST)", 5.5),
+    ("🇵🇰", "Pakistan (PKT)", 5.0),
+    ("🇦🇪", "UAE (GST)", 4.0),
+    ("🌐", "UTC / GMT", 0.0),
+    ("🇪🇺", "Central Europe (CET)", 1.0),
+    ("🇺🇸", "USA East (EST)", -5.0),
+    ("🇺🇸", "USA West (PST)", -8.0),
+    ("🇯🇵", "Japan (JST)", 9.0),
+    ("🇦🇺", "Australia (AEST)", 10.0),
+]
 
 
 async def cmd_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    lines = ["🕐 <b>Abhi ka time:</b>\n"]
     now_utc = datetime.now(timezone.utc)
-    for name, offset in _ZONES.items():
-        t = now_utc + timedelta(hours=offset)
-        lines.append(f"{'🇮🇳' if name == 'IST' else '🌍'} <b>{name}:</b> {t.strftime('%I:%M %p')} ({t.strftime('%a, %d %b')})")
-    lines.append("\n<i>Sone ka time toh hamesha hota hai — bas maan ki baat. 😴</i>")
-    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
+    lines = [
+        "🌍 <b>World Time Zones</b>",
+        "━━━━━━━━━━━━━━━━━━━━",
+    ]
+
+    for flag, name, offset in _ZONES:
+        t = now_utc + timedelta(hours=offset)
+        time_str = t.strftime("%I:%M %p")
+        date_str = t.strftime("%a, %d %b")
+        lines.append(f"{flag} <b>{name}</b>\n└ <code>{time_str}</code> • <i>{date_str}</i>")
+
+    lines.append("━━━━━━━━━━━━━━━━━━━━")
+    lines.append("<i>Sone ka time toh hamesha hota hai — bas maan ki baat. 😴</i>")
+
+    await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 
 # ---------------- /shorturl (is.gd — free, no key) ----------------
 
