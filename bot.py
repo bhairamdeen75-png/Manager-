@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import random
 
@@ -291,7 +292,18 @@ async def on_error(update, context):
 
 
 async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Full passive pipeline — har normal group text message pe."""
+    """Full passive pipeline — har normal group text message pe.
+
+    IMPORTANT (perf): saari security-critical checks (gban/spam/blocklist/
+    forward/flood/word-filter/link-block) ab sabse pehle chalti hain, bina
+    kisi analytics ya decorative kaam ke beech me aaye. Pehle ye sab (group
+    tracking, activity, XP, autoreact) inline await ho rahe the, jisme har
+    ek apni Turso DB ya Telegram API round-trip leta hai — matlab ek gaali
+    wale message ko delete/mute hone se pehle 5-6 unrelated network calls
+    ka wait karna padta tha. Ab wo sab neeche background task me chale jaate
+    hain, taaki mute/ban/delete turant fire ho aur baaki cheezein bina kisi
+    ko rokte hue peeche se ho jaayein.
+    """
     user = update.effective_user
     chat = update.effective_chat
     msg = update.effective_message
@@ -301,57 +313,57 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if await fun.on_count_message(update, context):
         return
 
-    # Group registry + seen users (/tagall aur panel ke liye)
-    await db.track_group(chat.id, chat.title or "Group")
-    await db.track_user(chat.id, user.id, user.username or "", user.first_name or "")
-    await db.increment_message_count(chat.id)
-
-    # Activity tracking (/activity chart ke liye)
-    await store.bump_activity(chat.id, user.id)
-
-    # Autoreact — bot random reaction lagata hai (consume nahi karta)
-    await autoreact.on_autoreact(update, context)
-
-    # Image captcha answer check
+    # Image captcha answer check (user-flow specific, jaldi chahiye)
     if await captchaplus.on_image_captcha_text(update, context):
         return
 
-    # Global ban check
+    # ===== Security-critical checks — sabse pehle, kuch bhi inhe block na kare =====
     if await gban.on_gban_check(update, context):
         return
-
-    # Spam score check
     if await spamscore.check_message(update, context):
         return
-
-    # Global blocklist (gaali/scam words — hamesha on, koi exempt nahi)
     if await blocklist.check_blocklist(update, context):
         return
-
-    # Anti-forward check
     if await antiforward.check_forward(update, context):
         return
-
-    # Raid ke baad wala soft slow-mode (fast messages delete)
     if await raid.enforce_slowmode(update, context):
         return
-
-    # Anti-spam / flood control
     await antispam.check_flood(update, context)
-
-    # Word filters / link block
     await filters_handler.check_filters(update, context)
     await content_filter.check_links(update, context)
 
-    # #hashtag notes — /save se bane notes trigger hote hain yahan
-    await notes.check_note_trigger(update, context)
+    # ===== Non-critical bookkeeping — background me, kisi ko block nahi karta =====
+    asyncio.create_task(_background_bookkeeping(update, context))
 
-    # Auto-responses
-    await autoresponses.check_auto_response(update, context)
 
-    # XP system
-    await db.add_xp(chat.id, user.id, random.randint(XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE),
-              XP_COOLDOWN_SECONDS)
+async def _background_bookkeeping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Analytics/decorative kaam jo turant fire hone ki zarurat nahi —
+    security checks ke baad, bina kisi ko wait karaye, chalte hain."""
+    user = update.effective_user
+    chat = update.effective_chat
+    try:
+        # Group registry + seen users (/tagall aur panel ke liye)
+        await db.track_group(chat.id, chat.title or "Group")
+        await db.track_user(chat.id, user.id, user.username or "", user.first_name or "")
+        await db.increment_message_count(chat.id)
+
+        # Activity tracking (/activity chart ke liye)
+        await store.bump_activity(chat.id, user.id)
+
+        # Autoreact — bot mood-based reaction lagata hai (consume nahi karta)
+        await autoreact.on_autoreact(update, context)
+
+        # #hashtag notes — /save se bane notes trigger hote hain yahan
+        await notes.check_note_trigger(update, context)
+
+        # Auto-responses
+        await autoresponses.check_auto_response(update, context)
+
+        # XP system
+        await db.add_xp(chat.id, user.id, random.randint(XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE),
+                  XP_COOLDOWN_SECONDS)
+    except Exception as e:
+        logger.warning("Background bookkeeping error (%s): %s", chat.id, e)
 
 
 def main():
@@ -487,6 +499,7 @@ def main():
     app.add_handler(CommandHandler("weather", extra2.cmd_weather))
     app.add_handler(CommandHandler("wiki", extra2.cmd_wiki))
     app.add_handler(CommandHandler("qr", extra2.cmd_qr))
+    app.add_handler(CallbackQueryHandler(extra2.on_qr_download, pattern=r"^qrdl:"))
     app.add_handler(CommandHandler("calc", extra2.cmd_calc))
     app.add_handler(CommandHandler("time", extra2.cmd_time))
     app.add_handler(CommandHandler("shorturl", extra2.cmd_shorturl))
