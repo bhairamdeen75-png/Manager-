@@ -28,8 +28,15 @@ async def on_edited(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await msg.delete()
             await chat.send_message(
-                f"✏️ {user.mention_html()} ne edit karke spam bheja — delete kar diya.",
-                parse_mode="HTML",
-            )
+                 f"🛡️ <b>EDIT-SPAM BLOCKED</b>\n"
+                 f"━━━━━━━━━━━━━━━━━━━━━\n"
+                 f"👤 <b>User:</b> {user.mention_html()}\n"
+                 f"🔍 <b>Reason:</b> Message edit karke stealth spam 🥷\n"
+                 f"🗑️ <b>Action:</b> Message instant delete kar diya!\n"
+                 f"━━━━━━━━━━━━━━━━━━━━━\n"
+                 f"<i>Nice try, par Manager ki nazar se bachna namumkin hai! 😉</i>",
+             parse_mode="HTML",
+           )
+
         except Exception as e:
             logger.warning("Antiedit fail %s: %s", chat.id, e)
