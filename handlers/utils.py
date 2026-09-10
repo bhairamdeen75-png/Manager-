@@ -1,16 +1,50 @@
+import time
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
+# ---------------------------------------------------------------------------
+# is_admin() ko har passive handler (link check, forward check, spam check,
+# channelspam check, ...) alag-alag independently call karta tha — matlab EK
+# hi message ke liye Telegram ko 4-5 baar getChatMember round-trip jaata tha.
+# Yahi wo delay tha (5-10 sec). Ab ek chhota TTL cache: same (chat, user) ke
+# liye 60 sec tak dobara Telegram ko poochna nahi padega.
+# ---------------------------------------------------------------------------
+_ADMIN_CACHE_TTL = 60  # seconds
+_admin_cache: dict[tuple[int, int], tuple[bool, float]] = {}
+
 
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int = None) -> bool:
-    """Check if the given user (default: message sender) is an admin/owner of the chat."""
+    """Check if the given user (default: message sender) is an admin/owner of the chat.
+    Cached for a short window so multiple checks on the same message (or a
+    burst of messages) don't each re-hit Telegram's API."""
     chat = update.effective_chat
     uid = user_id or update.effective_user.id
+    key = (chat.id, uid)
+
+    now = time.monotonic()
+    cached = _admin_cache.get(key)
+    if cached and cached[1] > now:
+        return cached[0]
+
     try:
         member = await context.bot.get_chat_member(chat.id, uid)
-        return member.status in ("administrator", "creator")
+        result = member.status in ("administrator", "creator")
     except Exception:
-        return False
+        result = False
+
+    _admin_cache[key] = (result, now + _ADMIN_CACHE_TTL)
+    return result
+
+
+def invalidate_admin_cache(chat_id: int, user_id: int = None):
+    """Promotion/demotion hone par turant purana cached result hata do,
+    warna up to 60 sec tak galat status use hota rahega."""
+    if user_id is not None:
+        _admin_cache.pop((chat_id, user_id), None)
+    else:
+        for key in [k for k in _admin_cache if k[0] == chat_id]:
+            _admin_cache.pop(key, None)
 
 
 def get_target_user(update: Update):
