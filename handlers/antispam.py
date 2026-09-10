@@ -1,4 +1,4 @@
-import time
+Import time
 from datetime import datetime, timedelta, timezone
 
 from telegram import Update, ChatPermissions
@@ -48,7 +48,13 @@ async def check_flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 until_date=until,
             )
             await msg.reply_text(
-                f"🚫 {user.mention_html()} spam kar raha tha, {FLOOD_MUTE_MINUTES} minute ke liye mute.",
+                f"🛡️ <b>ANTI-FLOOD PROTECTION</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"👤 <b>User:</b> {user.mention_html()}\n"
+                f"⚠️ <b>Violation:</b> Rapid message spam detected\n"
+                f"🔇 <b>Action:</b> Muted for {FLOOD_MUTE_MINUTES} minutes\n"
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"<i>Slow down! Group rules apply to everyone. ⏱️</i>",
                 parse_mode="HTML",
             )
         except Exception:
@@ -59,6 +65,16 @@ async def check_flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await db.reset_warns(chat.id, user.id)
             try:
                 await context.bot.ban_chat_member(chat.id, user.id)
-                await msg.reply_text(f"⛔ {user.mention_html()} ban kar diya gaya (baar baar spam).", parse_mode="HTML")
+                await msg.reply_text(
+                    f"⛔ <b>USER BANNED — SPAM LIMIT REACHED</b>\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"👤 <b>User:</b> {user.mention_html()}\n"
+                    f"🚫 <b>Reason:</b> Repeated spam violations (Max warnings exceeded)\n"
+                    f"🔨 <b>Action:</b> Permanently banned from the group\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"<i>Group discipline is our top priority. 🚫</i>",
+                    parse_mode="HTML",
+                )
             except Exception:
                 pass
+
