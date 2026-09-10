@@ -365,12 +365,6 @@ def main():
     except Exception:
         pass
 
-    # Python 3.14+ me asyncio.get_event_loop() khud loop nahi banata (jo PTB 21.6
-    # internally run_polling() ke andar use karta hai) — isliye yahan explicitly
-    # bana ke set kar do, warna "There is no current event loop" crash hota hai.
-    import asyncio
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
     keep_alive()
 
     db.init_db()
@@ -624,11 +618,11 @@ def main():
         MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, on_group_message)
     )
 
-    # Autoreact — har group text message pe reaction lagao (agar /autoreact on ho)
-    app.add_handler(
-        MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, autoreact.on_autoreact),
-        group=7,
-    )
+    # NOTE: autoreact.on_autoreact is already called directly inside
+    # on_group_message() above, so it was being registered a *second* time
+    # here as its own handler — every group text message triggered it twice,
+    # which is why the "Message has no attribute 'reactions'" error (and any
+    # reaction) fired twice per message in the logs. Removed the duplicate.
 
     # Restart-proof schedules: night mode + scheduled messages
     # schedule_startup_jobs ab post_init hook se chalta hai (async DB calls ke liye)
