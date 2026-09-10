@@ -27,15 +27,33 @@ def _fmt(template: str, user) -> str:
 # /roast — reply karke kisi ko funny roast
 # =========================================================
 
+ROAST_BURST_COUNT = 10  # /roast on pe max itne hi messages — spam na ho
+
 async def cmd_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.effective_message
     target = msg.reply_to_message.from_user if msg.reply_to_message else update.effective_user
     if target.id == context.bot.id:
         await msg.reply_text("Aap mujhe roast karoge? Main toh bot hoon, feelings hi nahi 🤖😅")
         return
+
+    # /roast on — ek saath 5 ALAG roast bhejo, mention ke saath
+    if context.args and context.args[0].lower() == "on":
+        count = min(ROAST_BURST_COUNT, len(funtexts.ROASTS))
+        used = set()
+        for _ in range(count):
+            template = funmessages.pick("roast", funtexts.ROASTS)
+            # Extra safety — is burst ke andar repeat na ho
+            attempts = 0
+            while template in used and attempts < 10:
+                template = funmessages.pick("roast", funtexts.ROASTS)
+                attempts += 1
+            used.add(template)
+            await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+        return
+
+    # Normal /roast — sirf ek message (jaisa pehle tha)
     template = funmessages.pick("roast", funtexts.ROASTS)
     await msg.reply_text(_fmt(template, target), parse_mode="HTML")
-
 
 # =========================================================
 # /compliment — reply karke compliment
@@ -85,8 +103,6 @@ async def cmd_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Start/reset counting game — admin only."""
     chat_id = update.effective_chat.id
     await store.set_count_target(chat_id, 1)  # next number = 1
-    record = await store.get_count_record(chat_id) or 0
-    await store.set_count_record(chat_id, max(record, num))
     await update.message.reply_text(
         "🔢 Counting game shuru!\n"
         "Rules: ek number bole, koi repeat na kare, koi skip na kare!\n"
