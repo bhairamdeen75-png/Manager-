@@ -102,12 +102,17 @@ async def check_blocklist(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         mute_note = "1 hour mute."
     except (BadRequest, Forbidden):
         # Admin/owner hai — Telegram mute nahi hone dega, but message delete ho gaya
-        mute_note = "(admin hai, mute nahi ho sakta — message delete ho gaya)"
+        mute_note = "Are Bhai 😀 Tum to group ke Neta ho isliye mai apko ban nahi kar sakta but request hai ki in word ka use na please 🥺"
 
     try:
         await chat.send_message(
-            f"🚫 {user.mention_html()} — gaali/badwords is group me allowed nahi hai! "
-            f"{mute_note} Ye rule SAB pe lagta hai — admin, owner, koi exempt nahi.",
+            f"🧼 <b>MOUTHWASH MANDATORY!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>User:</b> {user.mention_html()}\n"
+            f"🚫 <b>Violation:</b> Gaali/Badwords detected & deleted!\n"
+            f"🔇 <b>Action:</b> {mute_note}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Sabun se muh dho ke aao bhai! Rule sabke liye barabar hai — admin ho ya owner, discipline sabka pehla haq hai. 🤐✨</i>",
             parse_mode="HTML",
         )
     except Exception:
