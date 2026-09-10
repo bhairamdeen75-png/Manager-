@@ -55,14 +55,24 @@ async def on_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         keyboard = InlineKeyboardMarkup([buttons])
 
-        sent = await context.bot.send_message(
-            chat.id,
-            f"👋 {member.mention_html()}, group me welcome!\n\n"
-            f"Bot ke saath verify karo: <b>{a} + {b} = ?</b>\n"
-            f"({CAPTCHA_TIMEOUT_SECONDS} second me solve karo, warna kick ho jaoge)",
-            parse_mode="HTML",
-            reply_markup=keyboard,
-        )
+    captcha_text = (
+        f"👋 <b>WELCOME TO THE GROUP!</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>Member:</b> {member.mention_html()}\n"
+        f"🤖 <b>Verification Check:</b> Real human ho ya bot?\n\n"
+        f"🧮 <b>Solve this Math Puzzle:</b>\n"
+        f"└ <b><code>{a} + {b} = ?</code></b>\n\n"
+        f"⏳ <b>Time Limit:</b> <code>{CAPTCHA_TIMEOUT_SECONDS}</code> seconds\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"<i>Sahi button dabao aur entry lo! Time khatam hua toh 30 min tak shant baithna padega! ⏱️🔇</i>"
+    )
+
+    sent = await context.bot.send_message(
+        chat_id=chat.id,
+        text=captcha_text,
+        parse_mode="HTML",
+        reply_markup=keyboard,
+    )
 
         _pending[key] = {"answer": correct, "message_id": sent.message_id}
 
@@ -96,15 +106,30 @@ async def _captcha_timeout(context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         mute_done = False
     try:
+        # Message text ko condition ke hisab se pehle set kar lete hain
+        if mute_done:
+            status_text = (
+                f"⏳ <b>CAPTCHA TIMEOUT!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"⚠️ <b>Status:</b> Verification ka time khatam!\n"
+                f"🔇 <b>Action:</b> 30 minutes ke liye mute ⏰\n"
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"<i>Thodi der aaram karo! 30 minute baad auto-unmute ho jaoge, fir se try kar lena. ☕</i>"
+            )
+        else:
+            status_text = (
+                f"⏳ <b>CAPTCHA TIMEOUT!</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"⚠️ <b>Status:</b> Verification ka time khatam!\n"
+                f"❌ <b>Action:</b> Mute Failed (Bot lacks 'Restrict' rights)\n"
+                f"━━━━━━━━━━━━━━━━━━━━━\n"
+                f"<i>Admins, bot ko theek se power do warna mute kaise karega? 🔧</i>"
+            )
+
         await context.bot.edit_message_text(
             chat_id=chat_id,
             message_id=message_id,
-            text=(
-                "⏰ Captcha timeout — user ko <b>30 minute ke liye mute</b> kar diya gaya. "
-                "Baad me khud group me likh sakta hai, phir se verify karwa sakte hain. 🕒"
-                if mute_done else
-                "⏰ Captcha timeout — mute nahi ho paya (bot ko 'Restrict members' permission chahiye)."
-            ),
+            text=status_text,
             parse_mode="HTML",
         )
     except Exception:
