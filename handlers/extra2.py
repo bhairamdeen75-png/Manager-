@@ -5,15 +5,23 @@ Sab free APIs use karte hain — wttr.in, Wikipedia, is.gd, qrserver.
 """
 
 import ast
+import io
 import logging
 import math
 import operator
 import random
+import secrets
+import time
 import database as db
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import httpx
-from telegram import Update
+import qrcode
+from qrcode.image.styledpil import StyledPilImage
+from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
+from qrcode.image.styles.colormasks import SolidFillColorMask
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
@@ -128,7 +136,63 @@ async def cmd_wiki(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, parse_mode="HTML", disable_web_page_preview=False)
 
 
-# ---------------- /qr (qrserver API — free, no key) ----------------
+# ---------------- /qr — locally generated, styled, high-scan-reliability ----------------
+# Pehle qrserver.com (external API) pe depend karte the — har baar ek extra
+# network round-trip lagta tha aur design plain/basic tha. Ab QR khud
+# generate karte hain: turant (koi extra API call nahi = faster), achhi
+# design (rounded modules + brand color), aur ERROR_CORRECT_H (30% error
+# correction) + proper quiet zone se scan hamesha reliable rehta hai.
+
+_QR_CACHE: dict[str, tuple[str, float]] = {}   # token -> (original data, expiry_ts)
+_QR_TTL = 3600  # 1 ghanta — download button itni der tak kaam karega
+_QR_MAX_LEN = 800
+
+
+def _qr_cache_put(data: str) -> str:
+    now = time.time()
+    for k in [k for k, (_, exp) in _QR_CACHE.items() if exp < now]:
+        _QR_CACHE.pop(k, None)
+    token = secrets.token_urlsafe(6)
+    _QR_CACHE[token] = (data, now + _QR_TTL)
+    return token
+
+
+def _qr_cache_get(token: str) -> str | None:
+    entry = _QR_CACHE.get(token)
+    if not entry:
+        return None
+    data, exp = entry
+    if exp < time.time():
+        _QR_CACHE.pop(token, None)
+        return None
+    return data
+
+
+def _make_qr_png(data: str) -> bytes:
+    qr = qrcode.QRCode(
+        error_correction=qrcode.constants.ERROR_CORRECT_H,  # 30% redundancy — scuffed/small screens pe bhi scan ho
+        box_size=12,
+        border=4,  # quiet zone — iske bina kai scanner apps QR pehchan nahi paate
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    img = qr.make_image(
+        image_factory=StyledPilImage,
+        module_drawer=RoundedModuleDrawer(),
+        color_mask=SolidFillColorMask(front_color=(24, 90, 189), back_color=(255, 255, 255)),
+    ).convert("RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _qr_share_url(data: str) -> str:
+    """Telegram ka native 'share to chat' dialog kholta hai — agar data ek
+    link hai to url param me, warna plain text ke roop me share hota hai."""
+    if data.startswith(("http://", "https://")):
+        return f"https://t.me/share/url?url={quote(data, safe='')}"
+    return f"https://t.me/share/url?url=&text={quote(data, safe='')}"
+
 
 async def cmd_qr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -138,11 +202,52 @@ async def cmd_qr(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
     data = " ".join(context.args)
-    if len(data) > 800:
-        await update.message.reply_text("😱 Itna lamba QR nahi ban sakta! Chhota text do (max 800 chars).")
+    if len(data) > _QR_MAX_LEN:
+        await update.message.reply_text(f"😱 Itna lamba QR nahi ban sakta! Chhota text do (max {_QR_MAX_LEN} chars).")
         return
-    url = f"https://api.qrserver.com/v1/create-qr-code/?size=500x500&data={data}"
-    await update.message.reply_photo(url, caption=f"📱 QR ready! Scan karke dekho — <i>{data[:60]}</i>", parse_mode="HTML")
+
+    try:
+        png_bytes = _make_qr_png(data)
+    except Exception as e:
+        logger.warning("QR gen fail: %s", e)
+        await update.message.reply_text("😅 QR banate waqt gadbad ho gayi, dobara try karo.")
+        return
+
+    token = _qr_cache_put(data)
+    preview = data if len(data) <= 60 else data[:57] + "…"
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("⬇️ Download HD", callback_data=f"qrdl:{token}"),
+        InlineKeyboardButton("↗️ Share", url=_qr_share_url(data)),
+    ]])
+    await update.message.reply_photo(
+        photo=io.BytesIO(png_bytes),
+        caption=f"📱 <b>QR ready!</b> Scan karke dekho 👇\n<code>{preview}</code>",
+        parse_mode="HTML",
+        reply_markup=kb,
+    )
+
+
+async def on_qr_download(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Download button — same QR ko bina compression ke document (PNG) ke
+    roop me bhejta hai, taaki full quality save/forward ho sake."""
+    query = update.callback_query
+    token = query.data.split(":", 1)[-1]
+    data = _qr_cache_get(token)
+    if not data:
+        await query.answer("⏳ Ye QR expire ho gaya — /qr dobara chalao.", show_alert=True)
+        return
+    await query.answer("⬇️ Bhej raha hoon...")
+    try:
+        png_bytes = _make_qr_png(data)
+    except Exception as e:
+        logger.warning("QR redownload fail: %s", e)
+        await query.message.reply_text("😅 Download fail ho gaya, dobara try karo.")
+        return
+    await query.message.reply_document(
+        document=io.BytesIO(png_bytes),
+        filename="qrcode.png",
+        caption="⬇️ Full-quality QR — yahan se save ya forward kar sakte ho.",
+    )
 
 
 # ---------------- /calc (safe math — koi API nahi, instant) ----------------
