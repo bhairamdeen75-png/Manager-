@@ -32,19 +32,52 @@ if not TURSO_DATABASE_URL:
 _conn = turso_serverless.connect(TURSO_DATABASE_URL, auth_token=TURSO_AUTH_TOKEN)
 
 
+def _reconnect():
+    """Turso (libSQL over HTTP) streams get closed server-side after being
+    idle for a while (or the Render free instance sleeps/wakes). The driver
+    keeps re-using the same stream id from the original connect() call, so
+    once that stream is gone every query fails with something like:
+        OperationalError: HTTP status 404: stream not found: d1b1c3f4:...
+    There was no recovery for this before — the process just kept throwing
+    on every DB call until it was manually restarted. Re-connect and swap
+    the module-level handle in place.
+    """
+    global _conn
+    logger.warning("Turso stream mar gaya tha, reconnect kar rahe hain...")
+    _conn = turso_serverless.connect(TURSO_DATABASE_URL, auth_token=TURSO_AUTH_TOKEN)
+
+
+def _is_stream_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "stream not found" in msg or "404" in msg
+
+
 # ---------------- Low-level SQL helpers ----------------
 # Actual network call blocking hai (turso_serverless sync driver hai), isliye
 # thread pool me chalate hain taaki bot ka asyncio event loop free rahe.
 
 def _sync_query(sql, params):
-    cur = _conn.execute(sql, params)
+    try:
+        cur = _conn.execute(sql, params)
+    except Exception as e:
+        if not _is_stream_error(e):
+            raise
+        _reconnect()
+        cur = _conn.execute(sql, params)
     cols = [d[0] for d in cur.description] if cur.description else []
     return [dict(zip(cols, r)) for r in cur.fetchall()]
 
 
 def _sync_exec(sql, params):
-    cur = _conn.execute(sql, params)
-    _conn.commit()
+    try:
+        cur = _conn.execute(sql, params)
+        _conn.commit()
+    except Exception as e:
+        if not _is_stream_error(e):
+            raise
+        _reconnect()
+        cur = _conn.execute(sql, params)
+        _conn.commit()
     return getattr(cur, "lastrowid", None)
 
 
