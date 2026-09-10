@@ -3,7 +3,14 @@
 /autoreact on / off — sirf admins.
 
 Telegram limits ka dhyan:
-- Bots sirf standard emoji reactions laga sakte hain
+- Bots sirf standard emoji reactions laga sakte hain — aur zaruri baat: Telegram
+  sirf ek fixed whitelist of ~80 emoji ko hi reaction ke roop me accept karta
+  hai. Koi bhi emoji jo us list me nahi (ZWJ combos jaise 🤦‍♂️/🤷‍♂️, naye
+  Unicode emoji jaise 🩷🩵🩶, ya VS16 variants) reject ho jaata hai:
+      "Can't parse reactiontype: field 'custom_emoji_id' must be a valid number"
+  (Telegram use custom-emoji-id samajhne ki koshish karta hai aur fail hota
+  hai). Isliye pools ab sirf whitelist-safe emoji use karte hain, aur agar
+  phir bhi koi reject ho jaaye to ek guaranteed-safe emoji se retry hota hai.
 - Flood limit se bachne ke liye har message pe react nahi karte (~99% pe karte hain)
 - Agar koi mood match nahi hota toh ek safe general pool se pick karte hain
 """
@@ -14,12 +21,22 @@ import re
 
 from telegram import Update
 from telegram.constants import ChatType
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes, CommandHandler
 
 from handlers import store
 from handlers.utils import is_admin
 
 logger = logging.getLogger(__name__)
+
+_VS16 = "\ufe0f"
+
+
+def _clean(emoji: str) -> str:
+    """Variation selector-16 hata do — kai keyboards/fonts ye silently add kar
+    dete hain aur Telegram ke reaction-whitelist match ko fail kara dete hain."""
+    return emoji.replace(_VS16, "")
+
 
 # ---------------------------------------------------------------------------
 # Mood -> keywords (English + Hindi/Hinglish, sab lowercase substring match)
@@ -61,44 +78,25 @@ MOOD_KEYWORDS = {
     ],
 }
 
+# Sirf Telegram ke allowed reaction-emoji whitelist wale emoji rakhe hain —
+# ZWJ combos, skin-tone/gender variants, aur naye Unicode emoji jaanbujh kar
+# hataye gaye hain kyunki Telegram unhe reaction ke roop me reject karta hai.
 MOOD_REACTIONS = {
-    "funny": [
-        "😂", "🤣", "😁", "👏", "🔥", "🤡", "💀", "😹", "🙈", "🙉",
-        "🙊", "🤦", "🤷", "🤦‍♂️", "🤷‍♂️", "😆", "😅", "🫠",
-    ],
-    "sad": [
-        "😢", "🥺", "💔", "🥹", "😞", "🙁", "😔", "😐", "😑",
-        "🥱", "😩", "😥", "🫠", "😭",
-    ],
-    "angry": [
-        "😡", "🤬", "👿", "👺", "👹", "😈", "👎", "✊", "👊",
-        "🤛", "🤜", "🤮", "🤢", "😤",
-    ],
-    "love": [
-        "❤️", "😍", "🥰", "💕", "💖", "💗", "💓", "💞", "💌",
-        "💘", "💝", "❤️‍🔥", "💋", "🖤", "💜", "💙", "💚", "💛",
-        "🧡", "🤍", "🤎", "🩷", "🩵", "🩶",
-    ],
-    "shock": [
-        "😱", "😲", "🤯", "👀", "😮", "😯", "😬", "🤐", "😳",
-        "🫢", "😵", "🤔",
-    ],
-    "congrats": [
-        "🎉", "🎊", "🏆", "🥇", "👑", "💎", "🎁", "🎈", "🚀",
-        "🎯", "🥳", "✨", "🌟", "⭐", "💯", "🤩", "🫡", "🫶",
-    ],
-    "greeting": [
-        "🙏", "😁", "🔥", "🤗", "🤝", "✋", "🖐️", "👋", "✌️",
-        "🤞", "🤟", "🤘", "🤙", "👍", "🙋", "🙋‍♂️", "👌",
-    ],
+    "funny": ["🤣", "😁", "👏", "🤡", "🗿", "😎"],
+    "sad": ["😢", "💔", "😭"],
+    "angry": ["🤬", "😡", "👎"],
+    "love": ["❤", "🥰", "😍", "💘", "😘", "💋"],
+    "shock": ["😱", "🤯", "😨", "👀"],
+    "congrats": ["🎉", "🏆", "💯", "🤩"],
+    "greeting": ["🙏", "🤗", "🤝", "👌"],
 }
 
 # Agar koi mood match nahi hota, isi general pool se ek positive-safe emoji milega
-DEFAULT_REACTIONS = [
-    "👍", "❤️", "🔥", "🥰", "👏", "😁", "🤩", "🫡", "🫶", "🙏",
-    "😍", "💯", "🤝", "🤗", "😎", "✨", "🌟", "⭐", "🎉", "🥳",
-    "🤔", "😌", "🙌", "💪", "👌",
-]
+DEFAULT_REACTIONS = ["👍", "❤", "🔥", "🥰", "👏", "😁", "🤩", "🙏", "😍", "💯", "🤝", "🤗", "😎", "🎉"]
+
+# set_reaction fail ho jaaye (400 Bad Request) to inhi me se retry — ekdum
+# core, sabse bharosemand emoji jo Telegram har jagah accept karta hai.
+_SAFE_FALLBACK = ["👍", "❤", "🔥", "😁", "🎉"]
 
 _WORD_RE = re.compile(r"\s+")
 
@@ -120,6 +118,7 @@ def _detect_mood(text: str) -> str | None:
 def pick_reaction(msg) -> str:
     """Message ke content (text/caption/sticker emoji) dekh kar sahi mood wala
     reaction chunta hai. Kuch match na ho toh general pool se fallback karta hai.
+    Return hamesha VS16-clean, whitelist-safe emoji hota hai.
     """
     text = msg.text or msg.caption or ""
 
@@ -128,13 +127,13 @@ def pick_reaction(msg) -> str:
     if sticker_emoji:
         mood = _detect_mood(sticker_emoji)
         if mood:
-            return random.choice(MOOD_REACTIONS[mood])
+            return _clean(random.choice(MOOD_REACTIONS[mood]))
 
     mood = _detect_mood(text)
     if mood:
-        return random.choice(MOOD_REACTIONS[mood])
+        return _clean(random.choice(MOOD_REACTIONS[mood]))
 
-    return random.choice(DEFAULT_REACTIONS)
+    return _clean(random.choice(DEFAULT_REACTIONS))
 
 
 async def cmd_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -167,6 +166,28 @@ async def cmd_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("😴 Autoreact OFF — ab main shant hoon.")
 
 
+async def _try_react(msg, emoji: str) -> bool:
+    """Reaction lagane ki koshish. BadRequest (invalid/non-whitelisted emoji)
+    aaye to ek guaranteed-safe emoji se ek dobara try karta hai, taaki ek
+    galat emoji ki wajah se poora react hi skip na ho jaaye."""
+    try:
+        await msg.set_reaction(emoji)
+        return True
+    except BadRequest as e:
+        logger.info("Autoreact emoji '%s' rejected (%s) — safe fallback try kar rahe hain", emoji, e)
+    except Exception as e:
+        logger.info("Autoreact set_reaction error: %s", e)
+        return False
+
+    fallback = _clean(random.choice([f for f in _SAFE_FALLBACK if f != emoji] or _SAFE_FALLBACK))
+    try:
+        await msg.set_reaction(fallback)
+        return True
+    except Exception as e:
+        logger.info("Autoreact fallback bhi fail (%s)", e)
+        return False
+
+
 async def on_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     """on_group_message se directly call hota hai — handler group ka issue nahi."""
     chat = update.effective_chat
@@ -188,9 +209,5 @@ async def on_autoreact(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bo
     # and crashed autoreact on every single message. Removed — nothing to check.
 
     emoji = pick_reaction(msg)
-    try:
-        await msg.set_reaction(emoji)
-    except Exception as e:
-        logger.info("Autoreact skip (%s): %s", chat.id, e)
-        return False
+    await _try_react(msg, emoji)
     return False
