@@ -365,6 +365,12 @@ def main():
     except Exception:
         pass
 
+    # Python 3.14+ me asyncio.get_event_loop() khud loop nahi banata (jo PTB 21.6
+    # internally run_polling() ke andar use karta hai) — isliye yahan explicitly
+    # bana ke set kar do, warna "There is no current event loop" crash hota hai.
+    import asyncio
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
     keep_alive()
 
     db.init_db()
