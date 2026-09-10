@@ -1,0 +1,9 @@
+python-telegram-bot[job-queue]==21.6
+Flask==3.0.3
+httpx==0.27.2
+turso-serverless
+Pillow
+deep-translator
+matplotlib
+APScheduler
+yt-dlp
