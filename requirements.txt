@@ -3,6 +3,7 @@ Flask==3.0.3
 httpx==0.27.2
 turso-serverless
 Pillow
+qrcode[pil]
 deep-translator
 matplotlib
 APScheduler
