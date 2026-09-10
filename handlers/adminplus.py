@@ -115,11 +115,15 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     warns = await db.get_warns(chat_id, target.id)
     xp = await db.get_xp(chat_id, target.id)
 
-    await update.message.reply_text(
-        f"📊 <b>Status</b>\n"
-        f"👤 User: {target.mention_html()} (<code>{target.id}</code>)\n"
-        f"📈 Status: {status}\n"
-        f"⚠️ Warnings: {warns}\n"
-        f"⭐ XP: {xp}",
+        await update.message.reply_text(
+        f"📊 <b>User Profile Overview</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n"
+        f"👤 <b>User:</b> {target.mention_html()}\n"
+        f"🆔 <b>User ID:</b> <code>{target.id}</code>\n"
+        f"─────────────────────\n"
+        f"🛡️ <b>Status:</b> <b>{status}</b>\n"
+        f"⚠️ <b>Warnings:</b> <code>{warns}</code>\n"
+        f"⭐ <b>Total XP:</b> <code>{xp} XP</code>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━",
         parse_mode=ParseMode.HTML,
     )
