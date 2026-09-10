@@ -241,6 +241,12 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat = update.effective_chat
     new_members = update.effective_message.new_chat_members
 
+    # Naye members ko turant track karo — taaki tagall unhe pakde bina unke
+    # kabhi chat kiye hue bhi (pehle sirf jab wo khud message bhejte the tab track hote the)
+    for member in new_members:
+        if not member.is_bot:
+            await db.track_user(chat.id, member.id, member.username or "", member.first_name or "")
+
     # 1. Raid check (check_raid khud saare naye members log karta hai)
     if await raid.check_raid(update, context):
         return
@@ -257,6 +263,18 @@ async def on_new_chat_members(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         # math mode — captcha.on_new_member khud pura update process karta hai
         await captcha.on_new_member(update, context)
+
+async def on_any_group_activity(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Sirf tracking ke liye — text ke alawa (photo/sticker/video/document/voice
+    etc.) bhejne wale members ko bhi /tagall list me daalta hai."""
+    user = update.effective_user
+    chat = update.effective_chat
+    if not user or not chat or user.is_bot:
+        return
+    try:
+        await db.track_user(chat.id, user.id, user.username or "", user.first_name or "")
+    except Exception as e:
+        logger.warning("Media tracking error (%s): %s", chat.id, e)
 
 
 async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -568,6 +586,12 @@ def main():
     # Security+: demotion alert
     app.add_handler(ChatMemberHandler(
         security.on_my_membership, ChatMemberHandler.MY_CHAT_MEMBER
+    ), group=3)
+
+    # Non-text group activity bhi track karo (/tagall coverage ke liye)
+   app.add_handler(MessageHandler(
+       (~filters.TEXT & ~filters.COMMAND) & filters.ChatType.GROUPS,
+     on_any_group_activity
     ), group=3)
     
     # Channel-spam: auto-forwarded channel posts delete + mute
