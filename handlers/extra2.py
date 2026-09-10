@@ -19,7 +19,7 @@ from urllib.parse import quote
 import httpx
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
-from qrcode.image.styles.moduledrawers import RoundedModuleDrawer
+from qrcode.image.styles.moduledrawers import RoundedModuleDrawer, SquareModuleDrawer
 from qrcode.image.styles.colormasks import SolidFillColorMask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatAction
