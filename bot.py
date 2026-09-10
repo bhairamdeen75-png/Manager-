@@ -583,17 +583,19 @@ def main():
         security.on_new_member
     ), group=2)
 
-    # Security+: demotion alert
+        # Security+: demotion alert
     app.add_handler(ChatMemberHandler(
         security.on_my_membership, ChatMemberHandler.MY_CHAT_MEMBER
     ), group=3)
 
-    # Non-text group activity bhi track karo (/tagall coverage ke liye)
-   app.add_handler(MessageHandler(
-       (~filters.TEXT & ~filters.COMMAND) & filters.ChatType.GROUPS,
-     on_any_group_activity
-    ), group=3)
-    
+    # Non-text group activity bhi track karo (/tagall coverage ke liye) —
+    # alag group number (8) taaki group=3 wale security.on_media ke saath
+    # conflict na ho (ek group me sirf pehla matching handler chalta hai)
+    app.add_handler(MessageHandler(
+        (~filters.TEXT & ~filters.COMMAND) & filters.ChatType.GROUPS,
+        on_any_group_activity
+    ), group=8)
+
     # Channel-spam: auto-forwarded channel posts delete + mute
     app.add_handler(MessageHandler(
         filters.ChatType.GROUPS & ~filters.COMMAND,
