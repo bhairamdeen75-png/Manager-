@@ -22,12 +22,17 @@ async def cmd_antiforward(update: Update, context: ContextTypes.DEFAULT_TYPE):
         current = await db.get_antiforward(update.effective_chat.id)
         state = "ON ✅ (forwarding band hai)" if current else "OFF ❌ (forwarding free hai)"
         await update.message.reply_text(
-            f"🚫 Anti-Forward abhi: {state}\n"
-            f"Badalne ke liye: /antiforward on|off\n\n"
-            f"<i>ON hone pe sirf admins forwarded messages bhej sakte hain — "
-            f"users ke forward delete ho jayenge.</i>",
-            parse_mode="HTML",
-        )
+             f"🛡️ <b>ANTI-FORWARD CONTROL PANEL</b>\n"
+             f"━━━━━━━━━━━━━━━━━━━━━\n"
+             f"⚙️ <b>Current Status:</b> <b>{state}</b>\n\n"
+             f"📌 <b>Commands:</b>\n"
+             f"├ <code>/antiforward on</code>  — Enable anti-forward\n"
+             f"└ <code>/antiforward off</code> — Disable anti-forward\n"
+             f"━━━━━━━━━━━━━━━━━━━━━\n"
+             f"ℹ️ <i>ON hone par normal users ke forwarded messages auto-delete ho jayenge. Sirf Admins forward kar sakte hain! 👑</i>",
+             parse_mode="HTML",
+       )
+
         return
     enabled = context.args[0].lower() == "on"
     await db.set_antiforward(update.effective_chat.id, enabled)
@@ -52,10 +57,16 @@ async def check_forward(update: Update, context: ContextTypes.DEFAULT_TYPE) -> b
     try:
         await msg.delete()
         await chat.send_message(
-            f"🚫 {user.mention_html()} — is group me forwarding band hai! "
-            f"Sirf admins forward kar sakte hain.",
-            parse_mode="HTML",
-        )
+             f"🚫 <b>FORWARD NOT ALLOWED!</b>\n"
+             f"━━━━━━━━━━━━━━━━━━━━━\n"
+             f"👤 <b>User:</b> {user.mention_html()}\n"
+             f"⚠️ <b>Reason:</b> Forwarded message detect hua\n"
+             f"🗑️ <b>Action:</b> Message delete kar diya gaya\n"
+             f"━━━━━━━━━━━━━━━━━━━━━\n"
+             f"<i>Apna original content likho dost, forward karna allowed nahi hai! 😉</i>",
+             parse_mode="HTML",
+      )
+
     except (BadRequest, Forbidden) as e:
         logger.warning("Anti-forward delete fail %s: %s", chat.id, e)
     return True
