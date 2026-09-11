@@ -294,7 +294,18 @@ async def get_open_appeals(user_id):
     return await _query("SELECT * FROM appeals WHERE user_id=? AND status='pending'", (user_id,))
 
 
-# ---------- Global ban ----------
+# ---------- Global ban (cached — har message pe check hota hai) ----------
+async def _gban_snapshot():
+    key = ("gban", "all")
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+    rows = await _query("SELECT user_id, reason FROM global_bans")
+    snap = {r["user_id"]: r["reason"] for r in rows}
+    _cache_set(key, snap)
+    return snap
+
+
 async def gban_add(user_id, reason, by):
     await _exec(
         'INSERT INTO global_bans (user_id, reason, "by", at) VALUES (?, ?, ?, ?) '
@@ -302,36 +313,23 @@ async def gban_add(user_id, reason, by):
         'at = excluded.at',
         (user_id, reason, by, _now().isoformat()),
     )
+    _cache_drop(("gban", "all"))
 
 
 async def gban_remove(user_id):
     await _exec("DELETE FROM global_bans WHERE user_id=?", (user_id,))
+    _cache_drop(("gban", "all"))
 
 
 async def is_gbanned(user_id):
-    rows = await _query("SELECT user_id, reason FROM global_bans WHERE user_id=?", (user_id,))
-    return rows[0] if rows else None
+    snap = await _gban_snapshot()
+    if user_id in snap:
+        return {"user_id": user_id, "reason": snap[user_id]}
+    return None
 
 
 async def gban_list():
     return await _query("SELECT user_id, reason FROM global_bans")
-
-
-# ---------- Ban log (appeals ke liye) ----------
-async def record_ban(chat_id, user_id):
-    await _exec(
-        "INSERT INTO bans_log (chat_id, user_id, banned_at) VALUES (?, ?, ?) "
-        "ON CONFLICT(chat_id, user_id) DO UPDATE SET banned_at = excluded.banned_at",
-        (chat_id, user_id, _now().isoformat()),
-    )
-
-
-async def get_ban_group(user_id):
-    rows = await _query(
-        "SELECT chat_id FROM bans_log WHERE user_id=? ORDER BY banned_at DESC LIMIT 1", (user_id,)
-    )
-    return rows[0]["chat_id"] if rows else None
-
 
 # ---------- Activity (daily message counts) ----------
 async def bump_activity(chat_id, user_id):
