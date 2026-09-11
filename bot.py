@@ -340,11 +340,13 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # ===== Security-critical checks — sabse pehle, kuch bhi inhe block na kare =====
+        # ===== Security-critical checks — sabse SASTA (koi network call nahi) pehle =====
+    if await blocklist.check_blocklist(update, context):
+        return
+    # ===== Ab thoda mehenga (cached DB/admin lookups) =====
     if await gban.on_gban_check(update, context):
         return
     if await spamscore.check_message(update, context):
-        return
-    if await blocklist.check_blocklist(update, context):
         return
     if await antiforward.check_forward(update, context):
         return
@@ -353,7 +355,7 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await antispam.check_flood(update, context)
     await filters_handler.check_filters(update, context)
     await content_filter.check_links(update, context)
-
+    
     # ===== Non-critical bookkeeping — background me, kisi ko block nahi karta =====
     asyncio.create_task(_background_bookkeeping(update, context))
 
