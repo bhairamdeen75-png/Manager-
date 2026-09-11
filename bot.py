@@ -291,12 +291,15 @@ async def on_bot_membership_change(update: Update, context: ContextTypes.DEFAULT
 
 async def on_private_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Owner Panel broadcast capture."""
-    await panel.handle_broadcast_message(update, context)
-
+    if await panel.handle_broadcast_message(update, context):
+        return
     if await fun.on_confession_text(update, context):
         return
-    await panel.handle_broadcast_message(update, context)
 
+async def on_private_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Broadcast wizard ke Step 2 (media) ke liye — photo/video/document/gif."""
+    await panel.handle_broadcast_message(update, context)
+    
 
 async def on_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Passive counter for /stats."""
@@ -655,6 +658,23 @@ def main():
     # Full passive pipeline — har normal group text message
     app.add_handler(
         MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, on_group_message)
+    )
+
+        # /cancel aur /skip — broadcast wizard ke kisi bhi step pe kaam karte hain
+    app.add_handler(CommandHandler("cancel", on_private_text, filters=filters.ChatType.PRIVATE))
+    app.add_handler(CommandHandler("skip", on_private_text, filters=filters.ChatType.PRIVATE))
+
+    # /start control panel
+    app.add_handler(CallbackQueryHandler(panel.on_panel_callback, pattern=r"^pnl:"))
+    app.add_handler(ChatMemberHandler(on_bot_membership_change, ChatMemberHandler.MY_CHAT_MEMBER))
+    app.add_handler(
+        MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & ~filters.COMMAND, on_private_text)
+    )
+    app.add_handler(
+        MessageHandler(
+            (filters.PHOTO | filters.VIDEO | filters.ANIMATION | filters.Document.ALL) & filters.ChatType.PRIVATE,
+            on_private_media,
+        )
     )
 
     # NOTE: autoreact.on_autoreact is already called directly inside
