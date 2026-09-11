@@ -6,13 +6,12 @@ from telegram.ext import ContextTypes
 
 import database as db
 from config import FLOOD_MSG_LIMIT, FLOOD_TIME_WINDOW, FLOOD_MUTE_MINUTES, MAX_WARNS
+from handlers.utils import is_admin
 
-# In-memory flood tracker: {(chat_id, user_id): [timestamps]}
 _message_log: dict[tuple[int, int], list[float]] = {}
 
 
 async def check_flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Run on every group text message. Mutes users who send too many messages too fast."""
     msg = update.effective_message
     user = update.effective_user
     chat = update.effective_chat
@@ -20,13 +19,9 @@ async def check_flood(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not msg or not user or chat.type not in ("group", "supergroup"):
         return
 
-    # Don't flood-check admins
-    try:
-        member = await context.bot.get_chat_member(chat.id, user.id)
-        if member.status in ("administrator", "creator"):
-            return
-    except Exception:
-        pass
+    # Pehle apna alag get_chat_member call tha — ab cached is_admin() use karo
+    if await is_admin(update, context):
+        return
 
     key = (chat.id, user.id)
     now = time.time()
