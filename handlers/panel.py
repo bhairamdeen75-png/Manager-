@@ -12,6 +12,7 @@ All of this is driven entirely by callback_query buttons so it works fully
 inside a private chat with the bot.
 """
 
+import asyncio
 import html
 import logging
 from collections import deque
@@ -420,48 +421,181 @@ async def start_broadcast(update, context):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
 
-    context.user_data["awaiting_broadcast"] = True
+    context.user_data["broadcast_step"] = "text"
+    context.user_data["broadcast_data"] = {}
     await query.edit_message_text(
-        "📢 <b>Broadcast</b>\n\nAgla message jo tum yahan bhejoge, wo sab groups me bhej diya jayega.\n"
-        "Cancel karne ke liye /cancel bhejo.",
+        "📢 <b>Broadcast — Step 1/3: Text</b>\n\n"
+        "Message likho jo bhejna hai.\n\n"
+        "⏭️ /skip — sirf media/button bhejna hai, text nahi\n"
+        "❌ /cancel — poora process cancel karo",
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Owner Panel", callback_data="pnl:owner")]]),
     )
 
 
 async def handle_broadcast_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """Called from bot.py's private-chat text handler. Returns True if this
-    message was consumed as a broadcast (so the caller shouldn't do anything
-    else with it)."""
-    if not context.user_data.get("awaiting_broadcast"):
+    """Called from bot.py's private-chat text/media/command handlers.
+    3-step broadcast wizard: text -> media -> buttons -> send.
+    Returns True if this message was consumed by the wizard."""
+    step = context.user_data.get("broadcast_step")
+    if not step:
         return False
 
-    context.user_data["awaiting_broadcast"] = False
     user_id = update.effective_user.id
     if not _is_owner(user_id):
+        context.user_data.pop("broadcast_step", None)
+        context.user_data.pop("broadcast_data", None)
         return False
 
-    if update.effective_message.text and update.effective_message.text.strip() == "/cancel":
-        await update.effective_message.reply_text("❌ Broadcast cancel kar diya.")
+    msg = update.effective_message
+    text = (msg.text or "").strip() if msg.text else ""
+
+    # /cancel — kisi bhi step pe kaam karega
+    if text == "/cancel":
+        context.user_data.pop("broadcast_step", None)
+        context.user_data.pop("broadcast_data", None)
+        await msg.reply_text("❌ Broadcast cancel kar diya.")
         return True
 
+    data = context.user_data.setdefault("broadcast_data", {})
+
+    # ---------- Step 1: TEXT ----------
+    if step == "text":
+        if text == "/skip":
+            data["text"] = None
+        elif text:
+            data["text"] = text
+        else:
+            await msg.reply_text("❌ Text bhejo, ya /skip karo.")
+            return True
+        context.user_data["broadcast_step"] = "media"
+        await msg.reply_text(
+            "📢 <b>Step 2/3: Media</b>\n\n"
+            "Photo/video/document/GIF bhejo.\n\n"
+            "⏭️ /skip — bina media ke aage badho\n"
+            "❌ /cancel — cancel karo",
+            parse_mode="HTML",
+        )
+        return True
+
+    # ---------- Step 2: MEDIA ----------
+    if step == "media":
+        if text == "/skip":
+            data["media_type"] = None
+            data["file_id"] = None
+        elif msg.photo:
+            data["media_type"] = "photo"
+            data["file_id"] = msg.photo[-1].file_id
+        elif msg.video:
+            data["media_type"] = "video"
+            data["file_id"] = msg.video.file_id
+        elif msg.animation:
+            data["media_type"] = "animation"
+            data["file_id"] = msg.animation.file_id
+        elif msg.document:
+            data["media_type"] = "document"
+            data["file_id"] = msg.document.file_id
+        else:
+            await msg.reply_text("❌ Photo/video/document/GIF bhejo, ya /skip karo.")
+            return True
+        context.user_data["broadcast_step"] = "buttons"
+        await msg.reply_text(
+            "📢 <b>Step 3/3: Buttons</b>\n\n"
+            "Format (ek line = ek row):\n"
+            "<code>Label - https://link.com</code>\n\n"
+            "Same row me 2 buttons chahiye toh <code>|</code> se alag karo:\n"
+            "<code>Channel - https://t.me/x | Group - https://t.me/y</code>\n\n"
+            "⏭️ /skip — bina buttons ke bhej do\n"
+            "❌ /cancel — cancel karo",
+            parse_mode="HTML",
+        )
+        return True
+
+    # ---------- Step 3: BUTTONS -> SEND ----------
+    if step == "buttons":
+        if text == "/skip":
+            data["buttons"] = None
+        else:
+            kb_rows, valid = [], True
+            for line in text.split("\n"):
+                line = line.strip()
+                if not line:
+                    continue
+                row = []
+                for part in line.split("|"):
+                    part = part.strip()
+                    if " - " not in part:
+                        valid = False
+                        break
+                    label, url = part.rsplit(" - ", 1)
+                    label, url = label.strip(), url.strip()
+                    if not label or not url.startswith(("http://", "https://")):
+                        valid = False
+                        break
+                    row.append(InlineKeyboardButton(label, url=url))
+                if not valid:
+                    break
+                if row:
+                    kb_rows.append(row)
+            if not valid or not kb_rows:
+                await msg.reply_text(
+                    "❌ Format galat hai. Example:\n"
+                    "<code>Channel - https://t.me/theteamvb</code>\n\n"
+                    "Ya /skip karo.",
+                    parse_mode="HTML",
+                )
+                return True
+            data["buttons"] = kb_rows
+
+        if not data.get("text") and not data.get("media_type"):
+            context.user_data.pop("broadcast_step", None)
+            context.user_data.pop("broadcast_data", None)
+            await msg.reply_text("❌ Text aur media dono skip kar diye — kuch bhejne ko hi nahi bacha. Broadcast cancel ho gaya.")
+            return True
+
+        context.user_data.pop("broadcast_step", None)
+        await _send_broadcast(msg, context, data)
+        context.user_data.pop("broadcast_data", None)
+        return True
+
+    return False
+
+
+async def _send_broadcast(msg, context, data):
+    """Media pehle, text caption ke roop me, buttons attached — sabhi groups me."""
     groups = await db.get_all_groups()
     sent, failed = 0, 0
-    for g in groups:
+    kb = InlineKeyboardMarkup(data["buttons"]) if data.get("buttons") else None
+    text = data.get("text")
+    media_type = data.get("media_type")
+    file_id = data.get("file_id")
+
+    status_msg = await msg.reply_text(f"📤 Broadcast bhej raha hoon... (0/{len(groups)})")
+
+    for i, g in enumerate(groups, 1):
         try:
-            await context.bot.copy_message(
-                chat_id=g["chat_id"],
-                from_chat_id=update.effective_chat.id,
-                message_id=update.effective_message.message_id,
-            )
+            if media_type == "photo":
+                await context.bot.send_photo(g["chat_id"], file_id, caption=text, parse_mode="HTML" if text else None, reply_markup=kb)
+            elif media_type == "video":
+                await context.bot.send_video(g["chat_id"], file_id, caption=text, parse_mode="HTML" if text else None, reply_markup=kb)
+            elif media_type == "animation":
+                await context.bot.send_animation(g["chat_id"], file_id, caption=text, parse_mode="HTML" if text else None, reply_markup=kb)
+            elif media_type == "document":
+                await context.bot.send_document(g["chat_id"], file_id, caption=text, parse_mode="HTML" if text else None, reply_markup=kb)
+            else:
+                await context.bot.send_message(g["chat_id"], text, parse_mode="HTML", reply_markup=kb)
             sent += 1
         except Exception:
             failed += 1
 
-    await update.effective_message.reply_text(
-        f"📢 Broadcast bhej diya.\n✅ Sent: {sent}\n❌ Failed: {failed}"
-    )
-    return True
+        if i % 20 == 0:
+            try:
+                await status_msg.edit_text(f"📤 Broadcast bhej raha hoon... ({i}/{len(groups)})")
+            except Exception:
+                pass
+        await asyncio.sleep(0.05)  # flood-limit safety
+
+    await status_msg.edit_text(f"📢 <b>Broadcast complete!</b>\n\n✅ Sent: {sent}\n❌ Failed: {failed}", parse_mode="HTML")
 
 
 # ---------------- Callback router ----------------
