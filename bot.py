@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from telegram.request import HTTPXRequest
 import random
 
 from telegram import Update
@@ -388,6 +389,8 @@ async def _background_bookkeeping(update: Update, context: ContextTypes.DEFAULT_
 
 
 def main():
+
+def main():
     # Render deploy overlap guard — purana instance khud band hone ka time do
     try:
         import os, time
@@ -403,8 +406,24 @@ def main():
     db.init_db()
     store.init_store_tables()
 
-    app = Application.builder().token(BOT_TOKEN).post_init(schedule_startup_jobs).build()
+    # Default timeouts kaafi tight hain (Render ke network ke liye) —
+    # thoda margin do taaki transient slow-response pe ReadTimeout na aaye
+    request = HTTPXRequest(
+        connect_timeout=15.0,
+        read_timeout=30.0,
+        write_timeout=30.0,
+        pool_timeout=15.0,
+    )
 
+    app = (
+        Application.builder()
+        .token(BOT_TOKEN)
+        .request(request)
+        .get_updates_request(request)
+        .post_init(schedule_startup_jobs)
+        .build()
+    )
+    
     app.add_handler(CommandHandler("setleave", welcome.cmd_setleave))
     app.add_handler(CallbackQueryHandler(on_help_callback, pattern=r"^help:"))
     app.add_handler(CallbackQueryHandler(settings_panel.on_settings_callback, pattern=r"^setpnl:"))
