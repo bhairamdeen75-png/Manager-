@@ -1,4 +1,4 @@
-Import time
+import time
 from datetime import datetime, timedelta, timezone
 
 from telegram import Update, ChatPermissions
