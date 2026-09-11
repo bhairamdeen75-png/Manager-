@@ -191,8 +191,6 @@ async def on_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if await is_admin(update, context):
         return
-    except Exception:
-        return
 
     # 10. Night-lock hardening — night mode me non-admin media delete
     if await db.get_night_mode(chat.id):
@@ -255,8 +253,7 @@ async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if await is_admin(update, context):
         return
-    except Exception:
-        return
+    
     fname = (doc.file_name or "").lower()
     if not any(fname.endswith(ext) for ext in BAD_EXTS):
         return
@@ -323,8 +320,7 @@ async def check_url_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     if await is_admin(update, context):
         return
-    except Exception:
-        return
+    
     # Quarantine: naye members whitelist ki chinta nahi, sab links band
     if await _get(chat.id, "quarantine", False):
         jt = _join_time.get((chat.id, user.id))
