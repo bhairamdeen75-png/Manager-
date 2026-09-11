@@ -115,7 +115,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     warns = await db.get_warns(chat_id, target.id)
     xp = await db.get_xp(chat_id, target.id)
 
-        await update.message.reply_text(
+    await update.message.reply_text(
         f"📊 <b>User Profile Overview</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 <b>User:</b> {target.mention_html()}\n"
