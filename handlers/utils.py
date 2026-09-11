@@ -14,24 +14,25 @@ _ADMIN_CACHE_TTL = 60  # seconds
 _admin_cache: dict[tuple[int, int], tuple[bool, float]] = {}
 
 
-async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int = None) -> bool:
-    """Check if the given user (default: message sender) is an admin/owner of the chat.
-    Cached for a short window so multiple checks on the same message (or a
-    burst of messages) don't each re-hit Telegram's API."""
+async def is_admin(update, context, user_id=None):
     chat = update.effective_chat
     uid = user_id or update.effective_user.id
     key = (chat.id, uid)
-
     now = time.monotonic()
     cached = _admin_cache.get(key)
     if cached and cached[1] > now:
         return cached[0]
 
+    t0 = time.monotonic()
     try:
         member = await context.bot.get_chat_member(chat.id, uid)
         result = member.status in ("administrator", "creator")
     except Exception:
         result = False
+    elapsed = time.monotonic() - t0
+    if elapsed > 0.3:
+        import logging
+        logging.getLogger(__name__).warning("SLOW get_chat_member (%.2fs)", elapsed)
 
     _admin_cache[key] = (result, now + _ADMIN_CACHE_TTL)
     return result
