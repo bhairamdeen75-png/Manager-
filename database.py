@@ -57,6 +57,7 @@ def _is_stream_error(exc: Exception) -> bool:
 # thread pool me chalate hain taaki bot ka asyncio event loop free rahe.
 
 def _sync_query(sql, params):
+    t0 = time.monotonic()
     try:
         cur = _conn.execute(sql, params)
     except Exception as e:
@@ -65,10 +66,15 @@ def _sync_query(sql, params):
         _reconnect()
         cur = _conn.execute(sql, params)
     cols = [d[0] for d in cur.description] if cur.description else []
-    return [dict(zip(cols, r)) for r in cur.fetchall()]
+    result = [dict(zip(cols, r)) for r in cur.fetchall()]
+    elapsed = time.monotonic() - t0
+    if elapsed > 0.3:  # 300ms se zyada lagi to log karo
+        logger.warning("SLOW QUERY (%.2fs): %s", elapsed, sql[:80])
+    return result
 
 
 def _sync_exec(sql, params):
+    t0 = time.monotonic()
     try:
         cur = _conn.execute(sql, params)
         _conn.commit()
@@ -78,6 +84,9 @@ def _sync_exec(sql, params):
         _reconnect()
         cur = _conn.execute(sql, params)
         _conn.commit()
+    elapsed = time.monotonic() - t0
+    if elapsed > 0.3:
+        logger.warning("SLOW EXEC (%.2fs): %s", elapsed, sql[:80])
     return getattr(cur, "lastrowid", None)
 
 
@@ -100,7 +109,7 @@ def _exec_sync_startup(sql: str, params=()):
 
 # ---------------- Tiny in-memory TTL cache (hot-path reads ke liye) ----------------
 
-_CACHE_TTL = 20  # seconds — itni der me settings/filter change shayad hi ho
+_CACHE_TTL = 120  # seconds — itni der me settings/filter change shayad hi ho
 _cache: dict = {}
 
 
