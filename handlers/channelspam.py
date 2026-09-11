@@ -25,23 +25,20 @@ MUTE_MINUTES = 60
 
 
 async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Har group message pe chalta hai. Auto-forwarded channel post detect karta hai."""
     msg = update.effective_message
     chat = update.effective_chat
     user = update.effective_user
 
-    # Naya pipeline: PTB v20+ me is_automatic_forward bool hota hai
-    # (jab user apna channel group se attach karta hai aur post auto-forward hoti hai)
     if not msg or not getattr(msg, "is_automatic_forward", False):
         return
-
-    # Anonymous admins / channel posts ke liye from_user None ho sakta hai
     if not user or user.is_bot:
         return
 
-    # Admins aur approved (trusted) users exempt
-    if await is_admin(update, context) or db.is_approved(chat.id, user.id):
+    # Missing 'await' tha — isliye admin/approved check hamesha True ban jaata
+    # tha aur ye handler kabhi actually mute/delete nahi karta tha
+    if await is_admin(update, context) or await store.is_approved(chat.id, user.id):
         return
+        
 
     try:
         await msg.delete()
