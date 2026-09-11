@@ -389,8 +389,6 @@ async def _background_bookkeeping(update: Update, context: ContextTypes.DEFAULT_
 
 
 def main():
-
-def main():
     # Render deploy overlap guard — purana instance khud band hone ka time do
     try:
         import os, time
@@ -423,7 +421,7 @@ def main():
         .post_init(schedule_startup_jobs)
         .build()
     )
-    
+
     app.add_handler(CommandHandler("setleave", welcome.cmd_setleave))
     app.add_handler(CallbackQueryHandler(on_help_callback, pattern=r"^help:"))
     app.add_handler(CallbackQueryHandler(settings_panel.on_settings_callback, pattern=r"^setpnl:"))
@@ -567,11 +565,9 @@ def main():
     app.add_handler(CommandHandler("emojistorywin", fun.cmd_emojistorywin))
     app.add_handler(CommandHandler("pet", fun.cmd_pet))
     app.add_handler(CommandHandler("feed", fun.cmd_feed))
-    app.add_handler(CommandHandler("feed", fun.cmd_feed))
     app.add_handler(CommandHandler("petplay", fun.cmd_play))
     app.add_handler(CommandHandler("confess", fun.cmd_confess))
     app.add_handler(CommandHandler("autoreact", autoreact.cmd_autoreact))
-
 
     # ===== NAYE CALLBACKS =====
     app.add_handler(CallbackQueryHandler(captchaplus.on_captcha_plus_answer, pattern=r"^captchaplus:"))
@@ -605,7 +601,7 @@ def main():
         security.on_new_member
     ), group=2)
 
-        # Security+: demotion alert
+    # Security+: demotion alert
     app.add_handler(ChatMemberHandler(
         security.on_my_membership, ChatMemberHandler.MY_CHAT_MEMBER
     ), group=3)
@@ -658,13 +654,6 @@ def main():
     app.add_handler(CallbackQueryHandler(captcha.on_captcha_answer, pattern=r"^captcha:"))
     app.add_handler(CallbackQueryHandler(rules.on_rules_accept, pattern=r"^rules:"))
 
-    # /start control panel
-    app.add_handler(CallbackQueryHandler(panel.on_panel_callback, pattern=r"^pnl:"))
-    app.add_handler(ChatMemberHandler(on_bot_membership_change, ChatMemberHandler.MY_CHAT_MEMBER))
-    app.add_handler(
-        MessageHandler(filters.TEXT & filters.ChatType.PRIVATE & ~filters.COMMAND, on_private_text)
-    )
-
     # Join/leave service message cleanup
     app.add_handler(
         MessageHandler(
@@ -679,7 +668,7 @@ def main():
         MessageHandler(filters.TEXT & filters.ChatType.GROUPS & ~filters.COMMAND, on_group_message)
     )
 
-        # /cancel aur /skip — broadcast wizard ke kisi bhi step pe kaam karte hain
+    # /cancel aur /skip — broadcast wizard ke kisi bhi step pe kaam karte hain
     app.add_handler(CommandHandler("cancel", on_private_text, filters=filters.ChatType.PRIVATE))
     app.add_handler(CommandHandler("skip", on_private_text, filters=filters.ChatType.PRIVATE))
 
