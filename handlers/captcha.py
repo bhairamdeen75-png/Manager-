@@ -55,24 +55,24 @@ async def on_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         keyboard = InlineKeyboardMarkup([buttons])
 
-    captcha_text = (
-        f"👋 <b>WELCOME TO THE GROUP!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>Member:</b> {member.mention_html()}\n"
-        f"🤖 <b>Verification Check:</b> Real human ho ya bot?\n\n"
-        f"🧮 <b>Solve this Math Puzzle:</b>\n"
-        f"└ <b><code>{a} + {b} = ?</code></b>\n\n"
-        f"⏳ <b>Time Limit:</b> <code>{CAPTCHA_TIMEOUT_SECONDS}</code> seconds\n"
-        f"━━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Sahi button dabao aur entry lo! Time khatam hua toh 30 min tak shant baithna padega! ⏱️🔇</i>"
-    )
+        captcha_text = (
+            f"👋 <b>WELCOME TO THE GROUP!</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👤 <b>Member:</b> {member.mention_html()}\n"
+            f"🤖 <b>Verification Check:</b> Real human ho ya bot?\n\n"
+            f"🧮 <b>Solve this Math Puzzle:</b>\n"
+            f"└ <b><code>{a} + {b} = ?</code></b>\n\n"
+            f"⏳ <b>Time Limit:</b> <code>{CAPTCHA_TIMEOUT_SECONDS}</code> seconds\n"
+            f"━━━━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Sahi button dabao aur entry lo! Time khatam hua toh 30 min tak shant baithna padega! ⏱️🔇</i>"
+        )
 
-    sent = await context.bot.send_message(
-        chat_id=chat.id,
-        text=captcha_text,
-        parse_mode="HTML",
-        reply_markup=keyboard,
-    )
+        sent = await context.bot.send_message(
+            chat_id=chat.id,
+            text=captcha_text,
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
 
         _pending[key] = {"answer": correct, "message_id": sent.message_id}
 
@@ -82,7 +82,6 @@ async def on_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
             data={"chat_id": chat.id, "user_id": member.id, "message_id": sent.message_id},
             name=f"captcha_timeout_{chat.id}_{member.id}",
         )
-
 
 async def _captcha_timeout(context: ContextTypes.DEFAULT_TYPE):
     job_data = context.job.data
