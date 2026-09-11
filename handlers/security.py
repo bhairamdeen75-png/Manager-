@@ -186,14 +186,11 @@ async def check_suspicious_name(update: Update, context: ContextTypes.DEFAULT_TY
 # ================= 3. Media spam filter + 10. Night-lock hardening + 12. Quarantine =================
 
 async def on_media(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Photo/GIF/video/sticker/voice — sab yahan se guzrega."""
     chat, user, msg = update.effective_chat, update.effective_user, update.effective_message
     if not chat or not user or chat.type not in ("group", "supergroup"):
         return
-    try:
-        m = await context.bot.get_chat_member(chat.id, user.id)
-        if m.status in ("administrator", "creator"):
-            return
+    if await is_admin(update, context):
+        return
     except Exception:
         return
 
@@ -256,10 +253,8 @@ async def on_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     doc = msg.document if msg else None
     if not chat or not user or not doc or chat.type not in ("group", "supergroup"):
         return
-    try:
-        m = await context.bot.get_chat_member(chat.id, user.id)
-        if m.status in ("administrator", "creator"):
-            return
+    if await is_admin(update, context):
+        return
     except Exception:
         return
     fname = (doc.file_name or "").lower()
@@ -320,17 +315,14 @@ async def cmd_alloweddomains(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text("🌐 <b>Allowed domains:</b>\n" + "\n".join(f"• {d}" for d in wl), parse_mode=ParseMode.HTML)
 
 async def check_url_whitelist(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Text messages me URL check — whitelist set hai to non-whitelisted links delete."""
     chat, user, msg = update.effective_chat, update.effective_user, update.effective_message
     if not chat or not user or not msg or not msg.text or chat.type not in ("group", "supergroup"):
         return
     wl = await _get(chat.id, "url_whitelist", [])
     if not wl:
-        return  # whitelist off
-    try:
-        m = await context.bot.get_chat_member(chat.id, user.id)
-        if m.status in ("administrator", "creator"):
-            return
+        return
+    if await is_admin(update, context):
+        return
     except Exception:
         return
     # Quarantine: naye members whitelist ki chinta nahi, sab links band
