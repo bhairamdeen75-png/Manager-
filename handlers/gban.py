@@ -60,14 +60,18 @@ async def cmd_gbans(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("\n".join(lines))
 
 
-async def on_gban_check(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Passive: gbanned user ka message delete + group se ban."""
+async def on_gban_check(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """Passive: gbanned user ka message delete + group se ban. True = action liya."""
     user = update.effective_user
     chat = update.effective_chat
-    if not user or await store.is_gbanned(user.id) is None:
-        return
+    if not user:
+        return False
+    ban = await store.is_gbanned(user.id)
+    if not ban:
+        return False
     try:
         await update.effective_message.delete()
         await context.bot.ban_chat_member(chat.id, user.id)
     except (BadRequest, Forbidden) as e:
         logger.warning("Gban enforce fail %s: %s", chat.id, e)
+    return True
