@@ -154,20 +154,35 @@ async def check_links(update: Update, context: ContextTypes.DEFAULT_TYPE) -> boo
         try:
             await context.bot.ban_chat_member(chat.id, user.id)
             await context.bot.send_message(
-                chat.id,
-                f"⛔ {user.mention_html()} ko baar baar links/username bhejne par ban kar diya.",
-                parse_mode="HTML",
+                  chat.id,
+                  f"━━━━━━━━━━━━━━━━━━━━━━\n"
+                  f"🚫 <b>SPAM CONTROL ACTION</b>\n"
+                  f"━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                  f"👤 <b>User:</b> {user.mention_html()}\n"
+                  f"⚠️ <b>Reason:</b> Continuous link & username spamming\n"
+                  f"🔨 <b>Action:</b> Permanent Ban 🚀\n\n"
+                  f"✨ <i>Kripya group rules follow karein!</i>\n"
+                  f"━━━━━━━━━━━━━━━━━━━━━━",
+                  parse_mode="HTML",
             )
+            
         except Exception:
             pass
         await log_action(context, chat.id, f"⛔ Banned {user.mention_html()} (repeated links).")
     else:
         try:
             await context.bot.send_message(
-                chat.id,
-                f"🔗 {user.mention_html()}, links/usernames allowed nahi hain. Warning {count}/{MAX_WARNS}.",
-                parse_mode="HTML",
+                  chat.id,
+                  f"╭━━━━ ⚠️ <b>CHETAWANI</b> ━━━━╮\n"
+                  f"┆\n"
+                  f"┆ 🛑 Oye {user.mention_html()}! Yahan link aur username chipkana sakht mana hai.\n"
+                  f"┆ 🎫 <b>Challan no:</b> {count} of {MAX_WARNS}\n"
+                  f"┆\n"
+                  f"┆ <i>Sudhar jao, varna agli ticket seedha Ban-Express ki kategi!</i> 🚀\n"
+                  f"╰━━━━━━━━━━━━━━━━━━━━━╯",
+                 parse_mode="HTML",
             )
+
         except Exception:
             pass
         await log_action(context, chat.id, f"🔗 Deleted link message from {user.mention_html()}.")
