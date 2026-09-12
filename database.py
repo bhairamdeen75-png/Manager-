@@ -15,6 +15,7 @@ message.
 import asyncio
 import json
 import logging
+import threading
 import time
 
 import turso_serverless
@@ -30,6 +31,14 @@ if not TURSO_DATABASE_URL:
     )
 
 _conn = turso_serverless.connect(TURSO_DATABASE_URL, auth_token=TURSO_AUTH_TOKEN)
+
+# _conn ek shared object hai jo thread-safe NAHI hai. Pehle multiple threads
+# (asyncio.to_thread se, jab kai queries ek saath chal rahi hon — jaise
+# asyncio.gather() se parallel DB writes) isko simultaneously use/reconnect
+# karne ki koshish karte the, jisse "stream not found: generation mismatch"
+# errors aur 90+ second ke corrupted-state delays aate the. Ye lock ek
+# waqt me sirf EK thread ko DB tak pahunchne deta hai.
+_conn_lock = threading.Lock()
 
 
 def _reconnect():
@@ -55,39 +64,44 @@ def _is_stream_error(exc: Exception) -> bool:
 # ---------------- Low-level SQL helpers ----------------
 # Actual network call blocking hai (turso_serverless sync driver hai), isliye
 # thread pool me chalate hain taaki bot ka asyncio event loop free rahe.
+# _conn_lock ke andar hi actual execute/commit hota hai — taaki ek waqt me
+# sirf ek thread hi connection ko chhue.
 
 def _sync_query(sql, params):
     t0 = time.monotonic()
-    try:
-        cur = _conn.execute(sql, params)
-    except Exception as e:
-        if not _is_stream_error(e):
-            raise
-        _reconnect()
-        cur = _conn.execute(sql, params)
-    cols = [d[0] for d in cur.description] if cur.description else []
-    result = [dict(zip(cols, r)) for r in cur.fetchall()]
+    with _conn_lock:
+        try:
+            cur = _conn.execute(sql, params)
+        except Exception as e:
+            if not _is_stream_error(e):
+                raise
+            _reconnect()
+            cur = _conn.execute(sql, params)
+        cols = [d[0] for d in cur.description] if cur.description else []
+        result = [dict(zip(cols, r)) for r in cur.fetchall()]
     elapsed = time.monotonic() - t0
-    if elapsed > 0.3:  # 300ms se zyada lagi to log karo
+    if elapsed > 0.3:
         logger.warning("SLOW QUERY (%.2fs): %s", elapsed, sql[:80])
     return result
 
 
 def _sync_exec(sql, params):
     t0 = time.monotonic()
-    try:
-        cur = _conn.execute(sql, params)
-        _conn.commit()
-    except Exception as e:
-        if not _is_stream_error(e):
-            raise
-        _reconnect()
-        cur = _conn.execute(sql, params)
-        _conn.commit()
+    with _conn_lock:
+        try:
+            cur = _conn.execute(sql, params)
+            _conn.commit()
+        except Exception as e:
+            if not _is_stream_error(e):
+                raise
+            _reconnect()
+            cur = _conn.execute(sql, params)
+            _conn.commit()
+        result = getattr(cur, "lastrowid", None)
     elapsed = time.monotonic() - t0
     if elapsed > 0.3:
         logger.warning("SLOW EXEC (%.2fs): %s", elapsed, sql[:80])
-    return getattr(cur, "lastrowid", None)
+    return result
 
 
 async def _query(sql: str, params=()):
@@ -102,14 +116,15 @@ async def _exec(sql: str, params=()):
 
 def _exec_sync_startup(sql: str, params=()):
     """Sirf startup (init_db) ke liye — event loop chalu hone se pehle, sync theek hai."""
-    cur = _conn.execute(sql, params)
-    _conn.commit()
+    with _conn_lock:
+        cur = _conn.execute(sql, params)
+        _conn.commit()
     return cur
 
 
 # ---------------- Tiny in-memory TTL cache (hot-path reads ke liye) ----------------
 
-_CACHE_TTL = 300  # seconds — itni der me settings/filter change shayad hi ho
+_CACHE_TTL = 300  # seconds — settings/filters/aliases itni baar change nahi hoti
 _cache: dict = {}
 
 
