@@ -327,10 +327,9 @@ def _format_log_block(lines, empty_msg: str) -> str:
     return "<code>" + "\n".join(result_lines) + "</code>"
 
 
-async def show_owner_logs(update, context):
-    query = update.callback_query
-    await query.answer()
-    if not _is_owner(query.from_user.id):
+   async def show_owner_logs(update, context):
+       query = update.callback_query
+       if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
 
@@ -352,10 +351,9 @@ async def show_owner_logs(update, context):
     await _edit_or_alert(query, text, kb)
 
 
-async def show_owner_errors(update, context):
-    query = update.callback_query
-    await query.answer()
-    if not _is_owner(query.from_user.id):
+   async def show_owner_errors(update, context):
+       query = update.callback_query
+       if not _is_owner(query.from_user.id):
         await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
 
@@ -398,12 +396,10 @@ async def _edit_or_alert(query, text, kb):
 async def clear_owner_logs(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)  # ISKO RAKHO (permission-deny ke liye zaroori)
         return
     _all_logs.clear()
-    await query.answer("Logs clear kar diye ✅")
     await show_owner_logs(update, context)
-
 
 async def clear_owner_errors(update, context):
     query = update.callback_query
@@ -602,9 +598,16 @@ async def _send_broadcast(msg, context, data):
 
 async def on_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+
+    # Sabse PEHLE answer — warna baaki processing slow hone par
+    # "Query is too old" crash hota tha
+    try:
+        await query.answer()
+    except Exception as e:
+        logger.warning("query.answer() fail (probably already expired): %s", e)
+
     data = query.data or ""
     parts = data.split(":")
-
     action = parts[1] if len(parts) > 1 else ""
 
     if action == "home":
@@ -635,7 +638,4 @@ async def on_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await clear_owner_logs(update, context)
     elif action == "oclearerrors":
         await clear_owner_errors(update, context)
-    elif action == "noop":
-        await query.answer()
-    else:
-        await query.answer()
+      
