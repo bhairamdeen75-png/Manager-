@@ -360,6 +360,21 @@ async def _background_bookkeeping(update: Update, context: ContextTypes.DEFAULT_
     security checks ke baad, bina kisi ko wait karaye, chalte hain."""
     user = update.effective_user
     chat = update.effective_chat
+
+    # XP sabse pehle, apne alag try/except me — taaki neeche ki koi cheez
+    # (autoreact, notes, autoresponses) fail ho to bhi XP miss na ho, aur
+    # agar XP hi fail ho raha ho to specific log line milegi.
+    try:
+        result = await db.add_xp(
+            chat.id, user.id,
+            random.randint(XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE),
+            XP_COOLDOWN_SECONDS,
+        )
+        if result is None:
+            logger.info("XP skip (cooldown) — chat %s user %s", chat.id, user.id)
+    except Exception as e:
+        logger.warning("XP add error (%s): %s", chat.id, e)
+
     try:
         # Group registry + seen users (/tagall aur panel ke liye)
         await db.track_group(chat.id, chat.title or "Group")
@@ -377,10 +392,6 @@ async def _background_bookkeeping(update: Update, context: ContextTypes.DEFAULT_
 
         # Auto-responses
         await autoresponses.check_auto_response(update, context)
-
-        # XP system
-        await db.add_xp(chat.id, user.id, random.randint(XP_MIN_PER_MESSAGE, XP_MAX_PER_MESSAGE),
-                  XP_COOLDOWN_SECONDS)
     except Exception as e:
         logger.warning("Background bookkeeping error (%s): %s", chat.id, e)
 
