@@ -34,7 +34,10 @@ async def cmd_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.effective_message
     target = msg.reply_to_message.from_user if msg.reply_to_message else update.effective_user
     if target.id == context.bot.id:
-        await msg.reply_text("Aap mujhe roast karoge? Main toh bot hoon, feelings hi nahi 🤖😅")
+        await msg.reply_text(
+            "Aap mujhe roast karoge? Main toh bot hoon, feelings hi nahi 🤖😅",
+            allow_sending_without_reply=True,
+        )
         return
 
     # /roast on — ek saath 10 ALAG roast bhejo, mention ke saath
@@ -50,14 +53,27 @@ async def cmd_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 attempts += 1
             used.add(template)
             try:
-                await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+                # NOTE: allow_sending_without_reply=True — agar burst ke beech
+                # me original command-message delete ho jaaye (admin/anti-spam
+                #/user khud), toh Telegram "Message to be replied not found"
+                # keh kar POORA send fail kar deta tha. Ab reply na mile to bhi
+                # message normal (non-reply) ki tarah chala jaata hai.
+                await msg.reply_text(
+                    _fmt(template, target),
+                    parse_mode="HTML",
+                    allow_sending_without_reply=True,
+                )
                 sent += 1
             except Exception as e:
                 logger.warning("Roast burst message fail: %s", e)
                 # Telegram ne rate-limit lagaya ho to thoda zyada ruk ke retry
                 await asyncio.sleep(1.5)
                 try:
-                    await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+                    await msg.reply_text(
+                        _fmt(template, target),
+                        parse_mode="HTML",
+                        allow_sending_without_reply=True,
+                    )
                     sent += 1
                 except Exception as e2:
                     logger.warning("Roast burst retry bhi fail: %s", e2)
@@ -67,7 +83,7 @@ async def cmd_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Normal /roast — sirf ek message (jaisa pehle tha)
     template = funmessages.pick("roast", funtexts.ROASTS)
-    await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+    await msg.reply_text(_fmt(template, target), parse_mode="HTML", allow_sending_without_reply=True)
 # =========================================================
 # /compliment — reply karke compliment
 # =========================================================
@@ -76,7 +92,7 @@ async def cmd_compliment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.effective_message
     target = msg.reply_to_message.from_user if msg.reply_to_message else update.effective_user
     template = funmessages.pick("compliment", funtexts.COMPLIMENTS)
-    await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+    await msg.reply_text(_fmt(template, target), parse_mode="HTML", allow_sending_without_reply=True)
 
 
 # =========================================================
@@ -85,7 +101,10 @@ async def cmd_compliment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_fortune(update: Update, context: ContextTypes.DEFAULT_TYPE):
     template = funmessages.pick("fortune", funtexts.FORTUNES)
-    await update.message.reply_text(f"{template}\n\n— {update.effective_user.first_name} ke liye")
+    await update.message.reply_text(
+        f"{template}\n\n— {update.effective_user.first_name} ke liye",
+        allow_sending_without_reply=True,
+    )
 
 
 # =========================================================
@@ -97,15 +116,18 @@ async def cmd_ticket(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if msg.reply_to_message:
         target = msg.reply_to_message.from_user
     elif context.args:
-        await msg.reply_text("Reply karke /ticket use karo.")
+        await msg.reply_text("Reply karke /ticket use karo.", allow_sending_without_reply=True)
         return
     else:
         target = update.effective_user
     if target.id == context.bot.id:
-        await msg.reply_text("Bot ko ticket? Main toh police hoon is group ka 👮😅")
+        await msg.reply_text(
+            "Bot ko ticket? Main toh police hoon is group ka 👮😅",
+            allow_sending_without_reply=True,
+        )
         return
     template = funmessages.pick("ticket", funtexts.TICKETS)
-    await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+    await msg.reply_text(_fmt(template, target), parse_mode="HTML", allow_sending_without_reply=True)
 
 
 # =========================================================
@@ -120,7 +142,8 @@ async def cmd_count(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔢 Counting game shuru!\n"
         "Rules: ek number bole, koi repeat na kare, koi skip na kare!\n"
         "Galti hui toh count reset!\n\n"
-        "Shuru karo: **1** likho!"
+        "Shuru karo: **1** likho!",
+        allow_sending_without_reply=True,
     )
 
 
@@ -128,7 +151,10 @@ async def cmd_countstop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Stop the game — admin only."""
     await store.set_count_target(update.effective_chat.id, 0)
     record = await store.get_count_record(update.effective_chat.id)
-    await update.message.reply_text(f"🔢 Counting band! Aaj ka best: {record}")
+    await update.message.reply_text(
+        f"🔢 Counting band! Aaj ka best: {record}",
+        allow_sending_without_reply=True,
+    )
 
 
 async def on_count_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -152,7 +178,8 @@ async def on_count_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await store.set_count_target(chat_id, 0)
         await msg.reply_text(
             f"❌ Galat number! Tumne {num} likha, {target} aana tha!\n"
-            f"Record tha: {record} — ab phir se 1 se shuru karo! 😜"
+            f"Record tha: {record} — ab phir se 1 se shuru karo! 😜",
+            allow_sending_without_reply=True,
         )
         return True
 
@@ -161,7 +188,8 @@ async def on_count_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await store.set_count_target(chat_id, 0)
         await msg.reply_text(
             f"❌ {update.effective_user.mention_html()} dobara nahi! Ek hi user lagatar nahi likh sakta!\n"
-            f"Record tha: {record} — reset! 😂"
+            f"Record tha: {record} — reset! 😂",
+            allow_sending_without_reply=True,
         )
         return True
 
@@ -173,7 +201,7 @@ async def on_count_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Milestone check
     if num % 25 == 0:
         milestone = funmessages.pick("count", funtexts.COUNT_MILESTONES).replace("{count}", str(num))
-        await msg.reply_text(milestone)
+        await msg.reply_text(milestone, allow_sending_without_reply=True)
 
     return True
 
@@ -188,22 +216,30 @@ async def cmd_rep(update: Update, context: ContextTypes.DEFAULT_TYPE):
         target = msg.reply_to_message.from_user
         delta = 1 if context.args[0] in ("+", "plus", "up") else -1 if context.args[0] in ("-", "minus", "down") else 0
         if delta == 0:
-            await msg.reply_text("Format: reply karke /rep + ya /rep -")
+            await msg.reply_text("Format: reply karke /rep + ya /rep -", allow_sending_without_reply=True)
             return
         # Khud ko rep nahi de sakte
         if target.id == update.effective_user.id:
-            await msg.reply_text("Khud ko rep nahi de sakte 😏")
+            await msg.reply_text("Khud ko rep nahi de sakte 😏", allow_sending_without_reply=True)
             return
         total = await store.change_rep(update.effective_chat.id, target.id, delta)
         # Rate limit: user per target 1 baar per ghanta
         templates = funtexts.REP_UP_MSGS if delta > 0 else funtexts.REP_DOWN_MSGS
         template = funmessages.pick("rep_up" if delta > 0 else "rep_down", templates)
-        await msg.reply_text(_fmt(template, target).replace("{total}", str(total)), parse_mode="HTML")
+        await msg.reply_text(
+            _fmt(template, target).replace("{total}", str(total)),
+            parse_mode="HTML",
+            allow_sending_without_reply=True,
+        )
     else:
         # Apna rep dekho
         target = msg.reply_to_message.from_user if msg.reply_to_message else update.effective_user
         total = await store.get_rep(update.effective_chat.id, target.id)
-        await msg.reply_text(f"⭐ {target.mention_html()} ka reputation: <b>{total}</b>", parse_mode="HTML")
+        await msg.reply_text(
+            f"⭐ {target.mention_html()} ka reputation: <b>{total}</b>",
+            parse_mode="HTML",
+            allow_sending_without_reply=True,
+        )
 
 
 # =========================================================
@@ -218,10 +254,14 @@ async def cmd_emojistory(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"🎨 **Emoji Story Contest!**\n\n"
         f"In 5 emoji se story banao:\n\n{emojis}\n\n"
-        f"Koi bhi likh sakta hai — best story ko +100 XP! 10 minute me judge karunga!"
+        f"Koi bhi likh sakta hai — best story ko +100 XP! 10 minute me judge karunga!",
+        allow_sending_without_reply=True,
     )
     # XP winner: sabse zyada reactions wali story — manual admin decision ke liye:
-    await update.message.reply_text("Admin: best story pe reply karke /emojistorywin <user_id> bhejo")
+    await update.message.reply_text(
+        "Admin: best story pe reply karke /emojistorywin <user_id> bhejo",
+        allow_sending_without_reply=True,
+    )
 
 
 async def cmd_emojistorywin(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -229,7 +269,7 @@ async def cmd_emojistorywin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         return
     if not context.args or not context.args[0].isdigit():
-        await update.message.reply_text("Format: /emojistorywin <user_id>")
+        await update.message.reply_text("Format: /emojistorywin <user_id>", allow_sending_without_reply=True)
         return
     winner_id = int(context.args[0])
     await db.add_xp(update.effective_chat.id, winner_id, 100)
@@ -239,7 +279,11 @@ async def cmd_emojistorywin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name = member.user.first_name
     except Exception:
         name = str(winner_id)
-    await update.message.reply_text(f"🏆 <b>{name}</b> — Emoji Story Champion! +100 XP 🎉", parse_mode="HTML")
+    await update.message.reply_text(
+        f"🏆 <b>{name}</b> — Emoji Story Champion! +100 XP 🎉",
+        parse_mode="HTML",
+        allow_sending_without_reply=True,
+    )
 
 
 # =========================================================
@@ -255,7 +299,8 @@ async def cmd_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             f"🐣 Naya pet aaya gaya! Naam: **{name}**\n"
             f"Khilao: /feed • Kelao: /petplay • Status: /pet\n\n"
-            f"Dhyan rakho — bhooka rahega toh bhaag jayega! 😱"
+            f"Dhyan rakho — bhooka rahega toh bhaag jayega! 😱",
+            allow_sending_without_reply=True,
         )
         return
     hunger = pet.get("hunger", 100)
@@ -264,7 +309,8 @@ async def cmd_pet(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🐾 **{pet['name']}** ka status:\n"
         f"🍽️ Pet bhar gaya: {hunger}%\n"
         f"❤️ Mood: {mood}\n"
-        f"{'Khilao toh sahi! /feed' if hunger < 70 else 'Sab theek hai!'}"
+        f"{'Khilao toh sahi! /feed' if hunger < 70 else 'Sab theek hai!'}",
+        allow_sending_without_reply=True,
     )
 
 
@@ -272,25 +318,26 @@ async def cmd_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     pet = await store.get_pet(chat_id)
     if not pet:
-        await update.message.reply_text("Pehle /pet se pet banao!")
+        await update.message.reply_text("Pehle /pet se pet banao!", allow_sending_without_reply=True)
         return
     # Rate limit: har user 1 ghante me ek baar feed kar sakta hai
     new_hunger = min(100, pet.get("hunger", 0) + 30)
     await store.update_pet_hunger(chat_id, new_hunger)
     mood = funmessages.pick("pet_happy", funtexts.PET_MOODS_HAPPY).replace("{pet}", pet["name"])
-    await update.message.reply_text(mood)
+    await update.message.reply_text(mood, allow_sending_without_reply=True)
 
 
 async def cmd_play(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     pet = await store.get_pet(chat_id)
     if not pet:
-        await update.message.reply_text("Pehle /pet se pet banao!")
+        await update.message.reply_text("Pehle /pet se pet banao!", allow_sending_without_reply=True)
         return
     games = ["chhupan-chhupai 🙈", "football ⚽", "hide and seek 🫥", "running race 🏃", "khel-kud 🎾"]
     game = random.choice(games)
     await update.message.reply_text(
-        f"🎾 {pet['name']} ne {game} khela {update.effective_user.first_name} ke saath — maza aya! 😄"
+        f"🎾 {pet['name']} ne {game} khela {update.effective_user.first_name} ke saath — maza aya! 😄",
+        allow_sending_without_reply=True,
     )
 
 
@@ -310,13 +357,15 @@ async def cmd_confess(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "🤫 Anonymous confession ke liye:\n"
                 "1. Pehle /confess set <group_id> (group ka ID)\n"
                 "2. Phir apna message yahan bhejo — anonymously group me post hoga!\n\n"
-                "⚠️ Rules: No gaali, no personal attacks — blocklist active hai!"
+                "⚠️ Rules: No gaali, no personal attacks — blocklist active hai!",
+                allow_sending_without_reply=True,
             )
             return
         group_id = int(context.args[1])
         await store.set_confession_group(user.id, group_id)
         await update.message.reply_text(
-            "✅ Set! Ab apna confession message bhejo — anonymously post hoga."
+            "✅ Set! Ab apna confession message bhejo — anonymously post hoga.",
+            allow_sending_without_reply=True,
         )
         return
 
@@ -326,7 +375,8 @@ async def cmd_confess(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"1. Mujhe DM karo\n"
         f"2. /confess set {chat.id} bhejo\n"
         f"3. Apna message bhejo — anonymous post ho jayega!\n\n"
-        f"⚠️ Gaali/personal attack = confession reject"
+        f"⚠️ Gaali/personal attack = confession reject",
+        allow_sending_without_reply=True,
     )
 
 
@@ -347,7 +397,10 @@ async def on_confession_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # Blocklist check (gaali nahi chalega)
     from handlers.blocklist import _BLOCK_RE, _normalize
     if _BLOCK_RE.search(_normalize(text)):
-        await update.message.reply_text("❌ Confession me badwords nahi — dubara likho (bina gaali ke)!")
+        await update.message.reply_text(
+            "❌ Confession me badwords nahi — dubara likho (bina gaali ke)!",
+            allow_sending_without_reply=True,
+        )
         return True
 
     # Confession number
@@ -355,7 +408,13 @@ async def on_confession_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     head = random.choice(funtexts.CONFESSION_HEADS).format(num)
     try:
         await context.bot.send_message(group_id, f"{head}\n{text}")
-        await update.message.reply_text("✅ Confession post ho gaya! Kisko pata nahi chala 😎")
+        await update.message.reply_text(
+            "✅ Confession post ho gaya! Kisko pata nahi chala 😎",
+            allow_sending_without_reply=True,
+        )
     except Exception:
-        await update.message.reply_text("❌ Post nahi hua — shayad bot ko group me nikal diya gaya hai.")
+        await update.message.reply_text(
+            "❌ Post nahi hua — shayad bot ko group me nikal diya gaya hai.",
+            allow_sending_without_reply=True,
+        )
     return True
