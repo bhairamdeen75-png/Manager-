@@ -6,6 +6,7 @@
 /pro on | /pro off      → saari security ek hi command me ON/OFF
 """
 
+import asyncio
 import logging
 import re
 
@@ -150,10 +151,16 @@ async def cmd_pro(update: Update, context: ContextTypes.DEFAULT_TYPE):
     on = context.args[0].lower() == "on"
 
     try:
-        await db.set_raid_protection(chat_id, on)      # 🛡️ raid auto-lock
-        await db.set_link_block(chat_id, on)           # 🔗 link/scam blocker
-        await db.set_antiforward(chat_id, on)          # 🚫 anti-forward
-        await _set_quarantine(chat_id, on)             # 🧊 quarantine
+        # Pehle 4 sequential awaits the — har ek apna DB round-trip leta
+        # tha, Turso slow hote waqt total time unka SUM ban jaata tha
+        # (~12 sec). Ab parallel — total time sabse dheeme call jitna
+        # hoga, sabke sum jitna nahi.
+        await asyncio.gather(
+            db.set_raid_protection(chat_id, on),      # 🛡️ raid auto-lock
+            db.set_link_block(chat_id, on),            # 🔗 link/scam blocker
+            db.set_antiforward(chat_id, on),            # 🚫 anti-forward
+            _set_quarantine(chat_id, on),                # 🧊 quarantine
+        )
     except Exception as e:
         logger.warning("pro toggle fail %s: %s", chat_id, e)
         await update.message.reply_text("❌ Kuch settings change nahi hui — dobara try karo.")
