@@ -109,7 +109,7 @@ def _exec_sync_startup(sql: str, params=()):
 
 # ---------------- Tiny in-memory TTL cache (hot-path reads ke liye) ----------------
 
-_CACHE_TTL = 120  # seconds — itni der me settings/filter change shayad hi ho
+_CACHE_TTL = 300  # seconds — itni der me settings/filter change shayad hi ho
 _cache: dict = {}
 
 
