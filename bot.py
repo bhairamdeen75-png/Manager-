@@ -350,10 +350,12 @@ async def on_group_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if await raid.enforce_slowmode(update, context):
         return
-    await antispam.check_flood(update, context)
-    await filters_handler.check_filters(update, context)
-    await content_filter.check_links(update, context)
+        await antispam.check_flood(update, context)
+        await filters_handler.check_filters(update, context)
+        await content_filter.check_links(update, context)
 
+        logger.info("Reaching background bookkeeping for chat %s user %s", chat.id, user.id)  # ← YE ADD KARO
+        asyncio.create_task(_background_bookkeeping(update, context))
 
 async def _background_bookkeeping(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Analytics/decorative kaam jo turant fire hone ki zarurat nahi —
