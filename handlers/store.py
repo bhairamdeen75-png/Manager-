@@ -89,23 +89,30 @@ async def get_approved(chat_id):
 
 
 # ---------- Aliases ----------
+async def get_aliases(chat_id):
+    key = ("aliases", chat_id)
+    cached = _cache_get(key)
+    if cached is not None:
+        return cached
+    rows = await _query("SELECT alias, target FROM aliases WHERE chat_id=?", (chat_id,))
+    result = {r["alias"]: r["target"] for r in rows}
+    _cache_set(key, result)
+    return result
+
+
 async def set_alias(chat_id, alias, target):
     await _exec(
         "INSERT INTO aliases (chat_id, alias, target) VALUES (?, ?, ?) "
         "ON CONFLICT(chat_id, alias) DO UPDATE SET target = excluded.target",
         (chat_id, alias.lower().lstrip("/"), target.lower().lstrip("/")),
     )
+    _cache_drop(("aliases", chat_id))
 
 
 async def del_alias(chat_id, alias):
     await _exec("DELETE FROM aliases WHERE chat_id=? AND alias=?", (chat_id, alias.lower().lstrip("/")))
-
-
-async def get_aliases(chat_id):
-    rows = await _query("SELECT alias, target FROM aliases WHERE chat_id=?", (chat_id,))
-    return {r["alias"]: r["target"] for r in rows}
-
-
+    _cache_drop(("aliases", chat_id))
+    
 # ---------- Invite link map ----------
 async def map_link_to_inviter(chat_id, link, inviter_id):
     await _exec(
