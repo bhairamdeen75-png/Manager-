@@ -7,6 +7,7 @@ Counting game aur pet Turso me persist hote hain (restart-proof).
 import logging
 import random
 import re
+import asyncio
 
 from telegram import Update
 from telegram.ext import ContextTypes, MessageHandler, filters
@@ -36,25 +37,37 @@ async def cmd_roast(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("Aap mujhe roast karoge? Main toh bot hoon, feelings hi nahi 🤖😅")
         return
 
-    # /roast on — ek saath 5 ALAG roast bhejo, mention ke saath
+    # /roast on — ek saath 10 ALAG roast bhejo, mention ke saath
     if context.args and context.args[0].lower() == "on":
         count = min(ROAST_BURST_COUNT, len(funtexts.ROASTS))
         used = set()
+        sent = 0
         for _ in range(count):
             template = funmessages.pick("roast", funtexts.ROASTS)
-            # Extra safety — is burst ke andar repeat na ho
             attempts = 0
             while template in used and attempts < 10:
                 template = funmessages.pick("roast", funtexts.ROASTS)
                 attempts += 1
             used.add(template)
-            await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+            try:
+                await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+                sent += 1
+            except Exception as e:
+                logger.warning("Roast burst message fail: %s", e)
+                # Telegram ne rate-limit lagaya ho to thoda zyada ruk ke retry
+                await asyncio.sleep(1.5)
+                try:
+                    await msg.reply_text(_fmt(template, target), parse_mode="HTML")
+                    sent += 1
+                except Exception as e2:
+                    logger.warning("Roast burst retry bhi fail: %s", e2)
+            # Har message ke beech chhota gap — Telegram flood control se bachne ke liye
+            await asyncio.sleep(0.9)
         return
 
     # Normal /roast — sirf ek message (jaisa pehle tha)
     template = funmessages.pick("roast", funtexts.ROASTS)
     await msg.reply_text(_fmt(template, target), parse_mode="HTML")
-
 # =========================================================
 # /compliment — reply karke compliment
 # =========================================================
