@@ -709,6 +709,15 @@ def main():
         first=LEADERBOARD_INTERVAL_MINUTES * 60,
     )
 
+        # Turso stream idle-timeout se bachne ke liye — har 90 sec ek halka
+    # keep-alive query bhejo taaki stream zinda rahe aur baar-baar
+    # reconnect ka overhead na lage
+    app.job_queue.run_repeating(
+        _turso_keepalive,
+        interval=90,
+        first=90,
+    )
+
     logger.info("%s starting... %s", BOT_NAME, BOT_CREDIT)
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
@@ -716,6 +725,12 @@ def main():
 async def schedule_startup_jobs(app: Application):
     await nightmode.schedule_all_night_modes(app)
     await scheduler.rearm_schedules(app)
+
+async def _turso_keepalive(context: ContextTypes.DEFAULT_TYPE):
+    try:
+        await db._query("SELECT 1", ())
+    except Exception as e:
+        logger.warning("Turso keepalive fail: %s", e)
 
 
 if __name__ == "__main__":
