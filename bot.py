@@ -396,28 +396,39 @@ def main():
     except Exception:
         pass
 
+    
     keep_alive()
-
     db.init_db()
     store.init_store_tables()
 
-    # Default timeouts kaafi tight hain (Render ke network ke liye) —
-    # thoda margin do taaki transient slow-response pe ReadTimeout na aaye
+    # connection_pool_size default sirf 1 hota hai — matlab ek waqt me
+    # sirf EK Telegram API call ho sakti thi, baaki sab (dusre groups ke
+    # messages, getUpdates polling) queue me wait karte the. Yahi wo
+    # "SLOW get_chat_member (9.64s)" wala pattern tha — exact same number
+    # baar-baar aana isi single-connection queueing ka signature hai.
     request = HTTPXRequest(
         connect_timeout=15.0,
         read_timeout=30.0,
         write_timeout=30.0,
         pool_timeout=15.0,
+        connection_pool_size=64,  # ab 64 concurrent calls parallel ja sakte hain
     )
 
     app = (
         Application.builder()
         .token(BOT_TOKEN)
         .request(request)
-        .get_updates_request(request)
+        .get_updates_request(HTTPXRequest(
+            connect_timeout=15.0,
+            read_timeout=30.0,
+            write_timeout=30.0,
+            pool_timeout=15.0,
+            connection_pool_size=8,  # getUpdates ke liye alag, chhota pool
+        ))
         .post_init(schedule_startup_jobs)
         .build()
     )
+    
 
     app.add_handler(CommandHandler("setleave", welcome.cmd_setleave))
     app.add_handler(CallbackQueryHandler(on_help_callback, pattern=r"^help:"))
