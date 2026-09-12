@@ -30,6 +30,8 @@ LOG_LINES_SHOWN = 30
 LOG_BUFFER_SIZE = 300
 MAX_MESSAGE_CHARS = 3500
 
+logger = logging.getLogger(__name__)
+
 # key -> (label, emoji, getter, setter)
 TOGGLES = {
     "link_block": ("Link/Username Block", "🔗", db.get_link_block, db.set_link_block),
@@ -79,6 +81,24 @@ async def _safe_edit(query, text: str, kb: InlineKeyboardMarkup):
             await query.message.reply_text(text, parse_mode="HTML", reply_markup=kb)
         except Exception:
             pass
+
+
+async def _safe_answer(query, text: str = None, show_alert: bool = False):
+    """query.answer() safely call karo — Telegram callback queries sirf
+    ~15-30 sec valid rehte hain, aur ek query pe sirf EK baar answer() ho
+    sakta hai. Agar processing slow ho jaaye (Turso/network delay) to
+    answer() 'too old' ya 'already answered' error de sakta hai — pehle
+    ye crash kara raha tha (on_error handler tak jaata tha). Ab silently
+    log ho ke ignore hoga, bot crash nahi karega."""
+    try:
+        if text:
+            await query.answer(text, show_alert=show_alert)
+        else:
+            await query.answer()
+    except BadRequest as e:
+        logger.warning("query.answer() fail (ignored, likely expired): %s", e)
+    except Exception as e:
+        logger.warning("query.answer() unexpected fail (ignored): %s", e)
 
 
 # ---------------- Home screen ----------------
@@ -207,16 +227,16 @@ async def show_group_settings(update, context, chat_id: int):
 async def toggle_group_setting(update, context, chat_id: int, key: str):
     query = update.callback_query
     if key not in TOGGLES:
-        await query.answer("Setting nahi mili 🤔", show_alert=True)
+        await _safe_answer(query, "Setting nahi mili 🤔", show_alert=True)
         return
     label, emoji, getter, setter = TOGGLES[key]
     try:
         new_val = not bool(await getter(chat_id))
         await setter(chat_id, new_val)
     except Exception:
-        await query.answer("❌ Nahi hua — dobara try karo", show_alert=True)
+        await _safe_answer(query, "❌ Nahi hua — dobara try karo", show_alert=True)
         return
-    await query.answer(f"{emoji} {label}: {'✅ ON' if new_val else '❌ OFF'}")
+    await _safe_answer(query, f"{emoji} {label}: {'✅ ON' if new_val else '❌ OFF'}")
     await show_group_settings(update, context, chat_id)
 
 
@@ -229,7 +249,7 @@ def _fmt_num(n: int) -> str:
 async def show_owner_panel(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("📊 Stats", callback_data="pnl:ostats"),
@@ -251,7 +271,7 @@ async def show_owner_panel(update, context):
 async def show_owner_stats(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
     s = await db.get_bot_wide_stats()
     text = (
@@ -269,7 +289,7 @@ async def show_owner_stats(update, context):
 async def show_owner_groups(update, context, page: int = 0):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
     groups = await db.get_all_groups()
     start = page * GROUPS_PER_PAGE
@@ -296,14 +316,14 @@ async def show_owner_groups(update, context, page: int = 0):
 async def leave_group(update, context, chat_id: int):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
     try:
         await context.bot.leave_chat(chat_id)
     except Exception:
         pass
     await db.remove_group(chat_id)
-    await query.answer("Group leave kar diya.")
+    await _safe_answer(query, "Group leave kar diya.")
     await show_owner_groups(update, context, page=0)
 
 
@@ -327,10 +347,10 @@ def _format_log_block(lines, empty_msg: str) -> str:
     return "<code>" + "\n".join(result_lines) + "</code>"
 
 
-   async def show_owner_logs(update, context):
-       query = update.callback_query
-       if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+async def show_owner_logs(update, context):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
 
     body = _format_log_block(list(_all_logs), "Abhi tak koi log capture nahi hua.")
@@ -351,10 +371,10 @@ def _format_log_block(lines, empty_msg: str) -> str:
     await _edit_or_alert(query, text, kb)
 
 
-   async def show_owner_errors(update, context):
-       query = update.callback_query
-       if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+async def show_owner_errors(update, context):
+    query = update.callback_query
+    if not _is_owner(query.from_user.id):
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
 
     body = _format_log_block(list(_error_logs), "Koi error record nahi hai — sab sahi chal raha hai ✅")
@@ -382,39 +402,33 @@ async def _edit_or_alert(query, text, kb):
         await query.edit_message_text(text, parse_mode="HTML", reply_markup=kb)
     except BadRequest as e:
         if "not modified" not in str(e).lower():
-            try:
-                await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
-            except Exception:
-                pass
+            await _safe_answer(query, f"⚠️ {str(e)[:180]}", show_alert=True)
     except Exception as e:
-        try:
-            await query.answer(f"⚠️ {str(e)[:180]}", show_alert=True)
-        except Exception:
-            pass
+        await _safe_answer(query, f"⚠️ {str(e)[:180]}", show_alert=True)
 
 
 async def clear_owner_logs(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)  # ISKO RAKHO (permission-deny ke liye zaroori)
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
     _all_logs.clear()
     await show_owner_logs(update, context)
 
+
 async def clear_owner_errors(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
     _error_logs.clear()
-    await query.answer("Errors clear kar diye ✅")
     await show_owner_errors(update, context)
 
 
 async def start_broadcast(update, context):
     query = update.callback_query
     if not _is_owner(query.from_user.id):
-        await query.answer("Ye panel sirf bot owner ke liye hai.", show_alert=True)
+        await _safe_answer(query, "Ye panel sirf bot owner ke liye hai.", show_alert=True)
         return
 
     context.user_data["broadcast_step"] = "text"
@@ -599,12 +613,12 @@ async def _send_broadcast(msg, context, data):
 async def on_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
 
-    # Sabse PEHLE answer — warna baaki processing slow hone par
-    # "Query is too old" crash hota tha
-    try:
-        await query.answer()
-    except Exception as e:
-        logger.warning("query.answer() fail (probably already expired): %s", e)
+    # Sabse PEHLE answer — Telegram callback queries sirf ~15-30 sec valid
+    # rehte hain. Purane order me har function apne end pe answer() karta
+    # tha, jisse slow processing (Turso/network delay) ke case me
+    # "Query is too old" crash aata tha. Ab turant ack ho jaayega, chahe
+    # baaki processing (DB reads, edits) jitni bhi der le.
+    await _safe_answer(query)
 
     data = query.data or ""
     parts = data.split(":")
@@ -638,4 +652,3 @@ async def on_panel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await clear_owner_logs(update, context)
     elif action == "oclearerrors":
         await clear_owner_errors(update, context)
-      
