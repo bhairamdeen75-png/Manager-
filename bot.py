@@ -738,6 +738,8 @@ def main():
 async def schedule_startup_jobs(app: Application):
     await nightmode.schedule_all_night_modes(app)
     await scheduler.rearm_schedules(app)
+    await raid.restore_locks(app)   # ← YE LINE ADD KARO
+
 
 async def _turso_keepalive(context: ContextTypes.DEFAULT_TYPE):
     try:
