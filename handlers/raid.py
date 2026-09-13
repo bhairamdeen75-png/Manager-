@@ -95,7 +95,8 @@ async def cmd_unlock(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     for job in context.job_queue.get_jobs_by_name(_lock_job_name(chat_id)):
         job.schedule_removal()
-    await _do_unlock(context, chat_id, notify=True)
+    await db.clear_raid_lock(chat_id)
+    await _do_unlock(context.bot, chat_id, notify=True)
 
 
 # ---------------- Raid detection (called on every new_chat_members event) ----------------
@@ -133,12 +134,23 @@ async def check_raid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
     except Exception:
         pass
 
+    # Lock ka expiry time DB me save karo — taaki bot restart hone par bhi
+    # auto-unlock kaam kare (job_queue ka in-memory schedule restart pe kho
+    # jaata hai, isliye pehle group hamesha locked reh jaata tha)
+    unlock_at = now + settings["lock_minutes"] * 60
+    await db.set_raid_lock(chat.id, unlock_at)
+
     await context.bot.send_message(
-        chat.id,
-        f"🚨 <b>Raid detected!</b> {len(new_members)}+ members ne thode second me join kiya.\n"
-        f"🔒 Group {settings['lock_minutes']} minute ke liye auto-lock kar diya gaya (sirf admins likh sakte hain).\n"
-        f"Admin chaho to /unlock se pehle bhi khol sakte ho.",
-        parse_mode="HTML",
+          chat.id,
+          f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+          f"┣ 🚨 <b>RAID ALERT! Hamla Hua Hai!</b> 🛡️\n"
+          f"┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+          f"┣ 🥷 <b>Ghuspaithiye:</b> {len(new_members)}+ members ek saath join hue!\n"
+          f"┣ 🔒 <b>Security:</b> Agle {settings['lock_minutes']} minute tak Group Lock.\n"
+          f"┣ 🎤 <b>Mic Check:</b> Sirf Admins ko likhne ki permission hai.\n"
+          f"┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+          f"┗ <i>🛠️ Admin override: Manual un-lock ke liye /unlock type karein.</i>",
+          parse_mode="HTML"
     )
     await log_action(
         context, chat.id,
@@ -158,13 +170,14 @@ async def check_raid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool
 
 async def _auto_unlock(context: ContextTypes.DEFAULT_TYPE):
     chat_id = context.job.data["chat_id"]
-    await _do_unlock(context, chat_id, notify=True)
+    await db.clear_raid_lock(chat_id)
+    await _do_unlock(context.bot, chat_id, notify=True)
 
 
-async def _do_unlock(context: ContextTypes.DEFAULT_TYPE, chat_id: int, notify: bool):
+async def _do_unlock(bot, chat_id: int, notify: bool):
     _locked_chats.discard(chat_id)
     try:
-        await context.bot.set_chat_permissions(chat_id, _UNMUTED_PERMISSIONS)
+        await bot.set_chat_permissions(chat_id, _UNMUTED_PERMISSIONS)
     except Exception:
         pass
 
@@ -173,13 +186,45 @@ async def _do_unlock(context: ContextTypes.DEFAULT_TYPE, chat_id: int, notify: b
 
     if notify:
         try:
-            await context.bot.send_message(
-                chat_id,
-                f"🔓 Group unlock kar diya gaya. Agle {settings['slowmode_after_minutes']} minute tak "
-                f"soft slow-mode rahega (har user {settings['slowmode_seconds']}s me ek message).",
-            )
+            await bot.send_message(
+                  chat_id,
+                  f"┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                  f"┣ 🔓 <b>Group Khul Gaya Hai!</b> 🎉\n"
+                  f"┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                  f"┣ ⏳ <b>Duration:</b> Agle {settings['slowmode_after_minutes']} minute tak\n"
+                  f"┣ 🐢 <b>Mode:</b> Soft Slow-Mode ON\n"
+                  f"┣ 🚦 <b>Rule:</b> Har {settings['slowmode_seconds']}s mein 1 message\n"
+                  f"┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                  f"┗ <i>Spamming se bachein, aaram se chat karein!</i> 😎",
+                  parse_mode='HTML'
+             )
+
         except Exception:
             pass
+
+
+async def restore_locks(app):
+    """Bot restart hone par bhi raid-locks apne time pe khulte rahein —
+    lock ka expiry time DB me persist hota hai. Pehle ye sirf in-memory
+    job_queue schedule pe depend karta tha, jo restart pe kho jaata tha —
+    isliye group kabhi khud unlock nahi hota tha, sirf manual /unlock se."""
+    now = time.time()
+    locks = await db.get_all_raid_locks()
+    for lock in locks:
+        chat_id, until = lock["chat_id"], lock["until"]
+        _locked_chats.add(chat_id)
+        remaining = until - now
+        if remaining <= 0:
+            await db.clear_raid_lock(chat_id)
+            await _do_unlock(app.bot, chat_id, notify=True)
+        else:
+            app.job_queue.run_once(
+                _auto_unlock,
+                remaining,
+                chat_id=chat_id,
+                name=_lock_job_name(chat_id),
+                data={"chat_id": chat_id},
+            )
 
 
 # ---------------- Soft slow-mode enforcement (Bot API has no native slow-mode setter,
@@ -213,3 +258,4 @@ async def enforce_slowmode(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     _last_message_time[key] = now
     return False
+    
