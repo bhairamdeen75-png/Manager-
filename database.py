@@ -781,3 +781,28 @@ async def save_music_queue(chat_id: int, tracks, current=None, current_msg_id=No
 
 async def clear_music_queue(chat_id: int):
     await _exec("DELETE FROM music_queue WHERE chat_id=?", (chat_id,))
+
+# ---------------- Raid lock persistence (restart-proof auto-unlock) ----------------
+
+async def set_raid_lock(chat_id: int, until_epoch: float):
+    await _set_setting(chat_id, "raid_lock_until", until_epoch)
+
+
+async def get_raid_lock(chat_id: int):
+    return await _get_setting(chat_id, "raid_lock_until", None)
+
+
+async def clear_raid_lock(chat_id: int):
+    await _set_setting(chat_id, "raid_lock_until", None)
+
+
+async def get_all_raid_locks():
+    rows = await _query(
+        "SELECT chat_id, value FROM settings WHERE key='raid_lock_until' "
+        "AND value IS NOT NULL AND value != 'null'"
+    )
+    out = []
+    for r in rows:
+        out.append({"chat_id": r["chat_id"], "until": json.loads(r["value"])})
+    return out
+
